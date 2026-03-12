@@ -1,0 +1,458 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="send-date" content="[SEND_DATE]">
+    <meta name="send-time" content="[SEND_TIME]">
+    <title>[EMAIL_WINDOW_LABEL] - [PANELIST_FULL_NAME]</title>
+    <style>
+        :root {
+            color-scheme: light;
+        }
+        body {
+            margin: 0;
+            padding: 48px 20px;
+            background-color: #f4f6fb;
+            font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            color: #1f2937;
+        }
+        .email-wrapper {
+            max-width: 720px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 18px;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+            overflow: hidden;
+        }
+        .email-body {
+            padding: 44px 48px 40px;
+            font-size: 16px;
+            line-height: 1.75;
+        }
+        .email-body p {
+            margin: 0 0 18px;
+        }
+        .email-body p:last-child {
+            margin-bottom: 0;
+        }
+        .email-body ul,
+        .email-body ol {
+            margin: 0 0 22px 20px;
+            padding-left: 22px;
+        }
+        .email-body li {
+            margin: 6px 0;
+        }
+        .signature p {
+            margin-bottom: 6px;
+        }
+        .signature p:last-child {
+            margin-bottom: 0;
+        }
+        a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        a:hover {
+            text-decoration: underline;
+            color: #1d4ed8;
+        }
+        strong {
+            font-weight: 600;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 32px 12px;
+            }
+            .email-body {
+                padding: 32px 24px 28px;
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-wrapper">
+        <div class="email-body">
+<h1>ðŸ“§ PANEL EMAIL TEMPLATES - COMPLETE GUIDE</h1>
+
+<p><strong>Created by:</strong> Veterinary Business Institute</p>
+<p><strong>Last Updated:</strong> October 2025</p>
+<p><strong>Purpose:</strong> Standardized email templates for all panel events from initial invitation to thank you</p>
+
+<hr>
+
+<h2>ðŸ“‹ TEMPLATE OVERVIEW</h2>
+
+<p>This folder contains <strong>13 HTML email templates</strong> covering the entire panel event lifecycle:</p>
+
+<table>
+    <tr>
+        <th>Email Code</th>
+        <th>Email Name</th>
+        <th>Sender</th>
+        <th>When to Send</th>
+    </tr>
+    <tr>
+        <td>E-22</td>
+        <td>Initial Invitation</td>
+        <td>Reshani</td>
+        <td>~22 days before event</td>
+    </tr>
+    <tr>
+        <td>E-20</td>
+        <td>Follow-up Reminder</td>
+        <td>Reshani</td>
+        <td>~20 days before event (2 days after initial)</td>
+    </tr>
+    <tr>
+        <td>E-13</td>
+        <td>Confirmation Thank You</td>
+        <td>Reshani</td>
+        <td>Immediately after panelist confirms</td>
+    </tr>
+    <tr>
+        <td>E-10</td>
+        <td>Promotional Materials</td>
+        <td>Chaluka</td>
+        <td>~10 days before event</td>
+    </tr>
+    <tr>
+        <td>E-10</td>
+        <td>Questions Email</td>
+        <td>Chaluka</td>
+        <td>Same day or 1 day after Promo Materials</td>
+    </tr>
+    <tr>
+        <td>E-6</td>
+        <td>Boost Registrations</td>
+        <td>Chaluka</td>
+        <td>~6 days before event</td>
+    </tr>
+    <tr>
+        <td>E-5</td>
+        <td>Help Reach More</td>
+        <td>Chaluka</td>
+        <td>~5 days before event</td>
+    </tr>
+    <tr>
+        <td>E-4</td>
+        <td>3 Days Reminder</td>
+        <td>Chaluka</td>
+        <td>3 days before event</td>
+    </tr>
+    <tr>
+        <td>E-2</td>
+        <td>Tomorrow Panel</td>
+        <td>Chaluka</td>
+        <td>1 day before event</td>
+    </tr>
+    <tr>
+        <td>E-1</td>
+        <td>Today is the Day (Morning)</td>
+        <td>Chaluka</td>
+        <td>Event day morning</td>
+    </tr>
+    <tr>
+        <td>E-DAY</td>
+        <td>Starting in 2 Hours</td>
+        <td>Chaluka</td>
+        <td>2 hours before event (6:00 PM EST)</td>
+    </tr>
+    <tr>
+        <td>E-DAY</td>
+        <td>Starting Now</td>
+        <td>Chaluka</td>
+        <td>15 minutes before event (7:45 PM EST)</td>
+    </tr>
+    <tr>
+        <td>E+1</td>
+        <td>Thank You + Recording</td>
+        <td>Chaluka</td>
+        <td>1 day after event</td>
+    </tr>
+</table>
+
+<hr>
+
+<h2>ðŸ”§ HOW TO USE THESE TEMPLATES</h2>
+
+<h3>Step 1: Create Event Folder</h3>
+<p>When you have a new panel event, create a folder structure like this:</p>
+<code>OCT 29 Panel Event</code> or <code>NOV 15 Panel Event</code>
+
+<h3>Step 2: Replace Variables</h3>
+<p>Each template contains variables in <code>[SQUARE_BRACKETS]</code>. You need to replace these with actual panel data.</p>
+
+<div class="important">
+    <strong>âš ï¸ IMPORTANT:</strong> All variables must be replaced before sending emails. Search for <code>[</code> in each file to find all variables.
+</div>
+
+<h3>Step 3: Create Personalized Emails for Each Panelist</h3>
+<p>For each template, create separate files for each panelist:</p>
+<ul>
+    <li>E-10 Questions - KEITH TRUE.html</li>
+    <li>E-10 Questions - CHARLOTTE WEIR.html</li>
+    <li>E-6 Boost Registrations - KEITH TRUE.html</li>
+    <li>E-6 Boost Registrations - CHARLOTTE WEIR.html</li>
+</ul>
+
+<h3>Step 4: Copy to Outlook</h3>
+<ol>
+    <li>Open the HTML file in your browser (double-click)</li>
+    <li>Press <strong>Ctrl+A</strong> to select all</li>
+    <li>Press <strong>Ctrl+C</strong> to copy</li>
+    <li>Open Outlook, create new email</li>
+    <li>Press <strong>Ctrl+V</strong> to paste</li>
+    <li>All hyperlinks will be preserved!</li>
+</ol>
+
+<hr>
+
+<h2>ðŸ“ VARIABLE REPLACEMENT GUIDE</h2>
+
+<h3>Panelist-Specific Variables</h3>
+<table>
+    <tr>
+        <th>Variable</th>
+        <th>Example</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td><code>[PANELIST_FIRST_NAME]</code></td>
+        <td>Keith</td>
+        <td>Panelist's first name only</td>
+    </tr>
+    <tr>
+        <td><code>[PANELIST_FULL_NAME]</code></td>
+        <td>Keith True</td>
+        <td>Full name of panelist</td>
+    </tr>
+    <tr>
+        <td><code>[PANELIST_ZOOM_JOIN_LINK]</code></td>
+        <td>https://us02web.zoom.us/w/821...</td>
+        <td>Unique Zoom join link for this panelist</td>
+    </tr>
+    <tr>
+        <td><code>[PANELIST_REGISTRATION_TRACKING_LINK]</code></td>
+        <td>https://us02web.zoom.us/webinar/register/...</td>
+        <td>Unique tracking link to measure registrations brought by this panelist</td>
+    </tr>
+    <tr>
+        <td><code>[PROMOTIONAL_MATERIALS_DOC_LINK]</code></td>
+        <td>https://docs.google.com/document/d/...</td>
+        <td>Google Doc with graphics and captions for this panelist</td>
+    </tr>
+    <tr>
+        <td><code>[FINAL_BANNER_LINK]</code></td>
+        <td>https://docs.google.com/document/d/...?tab=...</td>
+        <td>"Going Live Tonight" graphic link</td>
+    </tr>
+    <tr>
+        <td><code>[QUESTION_1]</code> through <code>[QUESTION_5]</code></td>
+        <td>How do ownership models impact retention?</td>
+        <td>Custom questions for each panelist</td>
+    </tr>
+</table>
+
+<h3>Event-Specific Variables</h3>
+<table>
+    <tr>
+        <th>Variable</th>
+        <th>Example</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td><code>[PANEL_TITLE]</code></td>
+        <td>Veterinary Talent Solutions Panel</td>
+        <td>Main panel title</td>
+    </tr>
+    <tr>
+        <td><code>[PANEL_SUBTITLE]</code></td>
+        <td>The Workforce Crisis - Real Strategies to Recruit, Retain, and Rebuild Veterinary Teams</td>
+        <td>Full topic description</td>
+    </tr>
+    <tr>
+        <td><code>[PANEL_PURPOSE]</code></td>
+        <td>address the workforce crisis in veterinary medicine</td>
+        <td>Brief purpose statement</td>
+    </tr>
+    <tr>
+        <td><code>[EVENT_DATE]</code></td>
+        <td>October 29th</td>
+        <td>Event date (short format)</td>
+    </tr>
+    <tr>
+        <td><code>[EVENT_DATE_FULL]</code></td>
+        <td>Wednesday, October 29th, 2025</td>
+        <td>Event date (full format with day of week)</td>
+    </tr>
+    <tr>
+        <td><code>[EVENT_DATE_SHORT]</code></td>
+        <td>29th</td>
+        <td>Just the day number</td>
+    </tr>
+    <tr>
+        <td><code>[EVENT_DATE_MINUS_1]</code></td>
+        <td>October 28th</td>
+        <td>Day before event</td>
+    </tr>
+    <tr>
+        <td><code>[DISCUSSION_POINT_1]</code> through <code>[DISCUSSION_POINT_5]</code></td>
+        <td>Beyond job postings: creative recruitment strategies</td>
+        <td>Key discussion topics for the panel</td>
+    </tr>
+    <tr>
+        <td><code>[BRIEF_PANEL_TOPIC_DESCRIPTION]</code></td>
+        <td>recruitment, retention, and rebuilding teams</td>
+        <td>Short summary for Help Reach More email</td>
+    </tr>
+    <tr>
+        <td><code>[BRIEF_PANELIST_CONTRIBUTION_SUMMARY]</code></td>
+        <td>recruitment strategies, burnout prevention, and building career pathways</td>
+        <td>Summary of what this specific panelist discussed</td>
+    </tr>
+</table>
+
+<h3>Post-Event Variables (E+1 Thank You Email)</h3>
+<table>
+    <tr>
+        <th>Variable</th>
+        <th>Example</th>
+        <th>When to Use</th>
+    </tr>
+    <tr>
+        <td><code>[RECORDING_LINK]</code></td>
+        <td>https://zoom.us/rec/share/...</td>
+        <td>Add after event is recorded</td>
+    </tr>
+    <tr>
+        <td><code>[X]</code></td>
+        <td>47</td>
+        <td>Replace with actual number of registrants brought by this panelist</td>
+    </tr>
+    <tr>
+        <td><code>[ATTENDEE_LIST_LINK]</code></td>
+        <td>https://docs.google.com/spreadsheets/...</td>
+        <td>Only include if panelist brought 10+ registrations</td>
+    </tr>
+</table>
+
+<hr>
+
+<h2>âš™ï¸ WORKFLOW FOR NEW PANEL EVENT</h2>
+
+<h3>Phase 1: Initial Outreach (Reshani)</h3>
+<ol>
+    <li>Send <strong>E-22 Initial Invitation</strong> to potential panelists</li>
+    <li>Wait 2 days</li>
+    <li>Send <strong>E-20 Follow-up Reminder</strong> to non-responders</li>
+    <li>When panelist confirms, send <strong>E-13 Confirmation Thank You</strong></li>
+    <li>Request panelist details (bio, headshot, contact info)</li>
+    <li>Hand off to Chaluka</li>
+</ol>
+
+<h3>Phase 2: Pre-Event Setup (Chaluka)</h3>
+<ol>
+    <li>Create Zoom webinar and get unique join links for each panelist</li>
+    <li>Create registration tracking links for each panelist</li>
+    <li>Create promotional materials (graphics, captions) for each panelist</li>
+    <li>Draft custom questions for each panelist</li>
+    <li>Send <strong>E-10 Promotional Materials</strong> (~10 days before)</li>
+    <li>Send <strong>E-10 Questions</strong> (same day or next day after promo materials)</li>
+</ol>
+
+<h3>Phase 3: Registration Boost (Chaluka)</h3>
+<ol>
+    <li>Send <strong>E-6 Boost Registrations</strong> (6 days before)</li>
+    <li>Send <strong>E-5 Help Reach More</strong> (5 days before)</li>
+    <li>Send <strong>E-4 Three Days Reminder</strong> (3 days before)</li>
+</ol>
+
+<h3>Phase 4: Event Day (Chaluka)</h3>
+<ol>
+    <li>Send <strong>E-2 Tomorrow Panel</strong> (1 day before)</li>
+    <li>Send <strong>E-1 Today is Day</strong> (event day morning)</li>
+    <li>Send <strong>E-DAY Starting in 2 Hours</strong> (6:00 PM EST)</li>
+    <li>Send <strong>E-DAY Starting Now</strong> (7:45 PM EST)</li>
+    <li>Run panel event at 8:00 PM EST</li>
+</ol>
+
+<h3>Phase 5: Post-Event (Chaluka)</h3>
+<ol>
+    <li>Check registration reports for each panelist's tracking link</li>
+    <li>Get recording link from Zoom</li>
+    <li>Create attendee list (if panelist brought 10+)</li>
+    <li>Send <strong>E+1 Thank You + Recording</strong> (next day)</li>
+    <li>Remove conditional sections based on registration count:
+        <ul>
+            <li>0-9 registrations: Remove both 10+ and 25+ sections</li>
+            <li>10-24 registrations: Keep 10+ section, remove 25+ section</li>
+            <li>25+ registrations: Keep both sections</li>
+        </ul>
+    </li>
+</ol>
+
+<hr>
+
+<h2>ðŸ“Œ IMPORTANT NOTES</h2>
+
+<div class="note">
+    <strong>âœ… SEQUENCE CORRECTION:</strong> The Questions email (E-10) must come AFTER Promotional Materials email, not before. Both are sent around E-10 (10 days before event).
+</div>
+
+<div class="note">
+    <strong>âœ… TIME ZONE:</strong> All events are 8:00 PM - 9:00 PM EST. If coordinating from Sri Lanka, account for 10.5 hour time difference.
+</div>
+
+<div class="note">
+    <strong>âœ… UNIQUE LINKS:</strong> Each panelist gets unique Zoom join links and tracking links. Never reuse links across panelists!
+</div>
+
+<div class="note">
+    <strong>âœ… HYPERLINKS:</strong> Always use hyperlinks in format <code>&lt;a href="URL"&gt;descriptive text&lt;/a&gt;</code>. Never paste raw URLs.
+</div>
+
+<div class="note">
+    <strong>âœ… SIGNATURE:</strong> Always end Chaluka's emails with "Best regards," not just "Best,"
+</div>
+
+<hr>
+
+<h2>ðŸ—‚ï¸ FILE NAMING CONVENTION</h2>
+
+<p>For actual panel events, name files like this:</p>
+
+<ul>
+    <li><strong>Date Format:</strong> <code>Oct 23 Mail - Questions - KEITH TRUE.html</code></li>
+    <li><strong>Multiple Emails Same Day:</strong> <code>Oct 29 Mail - Email 6 Today is Day - KEITH TRUE.html</code></li>
+    <li><strong>Always Include Panelist Name:</strong> This helps you organize emails by panelist</li>
+</ul>
+
+<hr>
+
+<h2>ðŸŽ¯ QUICK CHECKLIST BEFORE SENDING</h2>
+
+<p>Before sending ANY email, verify:</p>
+
+<ul>
+    <li>â˜‘ï¸ All <code>[VARIABLES]</code> replaced with actual data</li>
+    <li>â˜‘ï¸ No placeholder text like <code>[INSERT_LINK_HERE]</code> remains</li>
+    <li>â˜‘ï¸ All hyperlinks tested and working</li>
+    <li>â˜‘ï¸ Correct panelist name in greeting</li>
+    <li>â˜‘ï¸ Correct event date and time</li>
+    <li>â˜‘ï¸ CC: liyanna.ekwa@gmail.com, reshani.thrivingdentist@gmail.com (for Chaluka emails)</li>
+    <li>â˜‘ï¸ Subject line matches email content</li>
+</ul>
+
+<hr>
+
+<p><strong>Questions?</strong> Contact Chaluka Harsha or refer to PROJECT_MEMORY_PANEL_EMAIL_SYSTEM.md</p>
+        </div>
+        </div>
+    </div>
+</body>
+</html>
