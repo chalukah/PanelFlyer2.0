@@ -3,7 +3,7 @@
  * Uses Google Identity Services (GIS) for OAuth and gapi for API calls.
  */
 
-const CLIENT_ID = '55562590178-o3kh65mpumonnkc40acdfpkt6r3q9dsu.apps.googleusercontent.com';
+const CLIENT_ID = '480513141175-1l3o1oaaubm3b0glg0c6ddtpcmifcuj7.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/documents.readonly';
 
 // Types for gapi / GIS (minimal declarations so TS is happy)
