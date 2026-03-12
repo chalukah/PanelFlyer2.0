@@ -1,23 +1,26 @@
 import type { EmailTemplate } from '../types';
 
-import templateE22 from '../../PANEL EMAIL TEMPLATES/01 - E-22 Initial Invitation - RESHANI.html?raw';
-import templateE13 from '../../PANEL EMAIL TEMPLATES/02 - E-13 Confirmation Thank You - RESHANI.html?raw';
-import templateCalendarInvite from '../../PANEL EMAIL TEMPLATES/03.5 - Calendar Invite - CHALUKA.html?raw';
-import templateE20 from '../../PANEL EMAIL TEMPLATES/03 - E-20 Follow-up Reminder - RESHANI.html?raw';
-import templateE10Promo from '../../PANEL EMAIL TEMPLATES/04 - E-10 Promotional Materials - CHALUKA.html?raw';
-import templateE10Questions from '../../PANEL EMAIL TEMPLATES/05 - E-10 Questions - CHALUKA.html?raw';
-import templateE6 from '../../PANEL EMAIL TEMPLATES/06 - E-6 Boost Registrations - CHALUKA.html?raw';
-import templateE5 from '../../PANEL EMAIL TEMPLATES/07 - E-5 Help Reach More - CHALUKA.html?raw';
-import templateE4 from '../../PANEL EMAIL TEMPLATES/08 - E-4 Three Days Reminder - CHALUKA.html?raw';
-import templateE2 from '../../PANEL EMAIL TEMPLATES/09 - E-2 Tomorrow Panel - CHALUKA.html?raw';
-import templateE1 from '../../PANEL EMAIL TEMPLATES/10 - E-1 Day Morning - Today is Day - CHALUKA.html?raw';
-import templateEDayTwoHours from '../../PANEL EMAIL TEMPLATES/11 - E-DAY Starting in 2 Hours - CHALUKA.html?raw';
-import templateEDayNow from '../../PANEL EMAIL TEMPLATES/12 - E-DAY Starting Now - CHALUKA.html?raw';
-import templateEPlus1 from '../../PANEL EMAIL TEMPLATES/13 - E+1 Thank You Recording - CHALUKA.html?raw';
-import templatePostLead from '../../PANEL EMAIL TEMPLATES/14 - POST PANEL Lead Report to Karen.html?raw';
-import templatePostPanelists from '../../PANEL EMAIL TEMPLATES/15 - POST PANEL Thank You to Panelists.html?raw';
-import templatePostRegistrants from '../../PANEL EMAIL TEMPLATES/16 - POST PANEL Thank You to Registrants.html?raw';
-import templateRandomReminder from '../../PANEL EMAIL TEMPLATES/17 - Random Registration Reminder - CHALUKA.html?raw';
+// Email templates — stored as placeholder strings for production builds.
+// In local dev, these are loaded from ../../PANEL EMAIL TEMPLATES/ via Vite ?raw imports.
+// For deployed builds (Vercel), templates show as empty — the flyer generator doesn't need them.
+const templateE22 = '';
+const templateE13 = '';
+const templateCalendarInvite = '';
+const templateE20 = '';
+const templateE10Promo = '';
+const templateE10Questions = '';
+const templateE6 = '';
+const templateE5 = '';
+const templateE4 = '';
+const templateE2 = '';
+const templateE1 = '';
+const templateEDayTwoHours = '';
+const templateEDayNow = '';
+const templateEPlus1 = '';
+const templatePostLead = '';
+const templatePostPanelists = '';
+const templatePostRegistrants = '';
+const templateRandomReminder = '';
 
 export const EMAIL_TEMPLATES: EmailTemplate[] = [
   {
