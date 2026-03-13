@@ -43,6 +43,7 @@ import {
   readGoogleDoc,
   getFileAsDataUrl,
   extractFolderIdFromUrl,
+  clearStoredToken,
   type DriveFile,
 } from '../utils/googleDrive';
 import {
@@ -271,7 +272,7 @@ function BannerThumbnail({
           pointerEvents: 'none',
           border: 'none',
         }}
-        sandbox="allow-same-origin"
+        sandbox="allow-same-origin allow-scripts"
         title={banner.label}
       />
 
@@ -408,7 +409,7 @@ function BannerModal({
                 transform: `scale(${scale})`,
                 transformOrigin: 'top left',
               }}
-              sandbox="allow-same-origin"
+              sandbox="allow-same-origin allow-scripts"
               title={banner.label}
             />
           </div>
@@ -507,11 +508,10 @@ export default function FlyerApp() {
   // Init Google auth on load if we have a stored token
   useEffect(() => {
     if (driveSignedIn) {
-      import('../utils/googleDrive').then(({ initGoogleAuth }) => {
+      import('../utils/googleDrive').then(({ initGoogleAuth, clearStoredToken: clearToken }) => {
         initGoogleAuth().catch(() => {
           // Token expired or invalid, clear it
-          localStorage.removeItem('gd_access_token');
-          localStorage.removeItem('gd_token_expiry');
+          clearToken();
           setDriveSignedIn(false);
         });
       });
@@ -1113,8 +1113,15 @@ ${banner.html}
       }, 100);
 
     } catch (err: unknown) {
-      console.error('[Import] ERROR:', err);
-      setDriveError(err instanceof Error ? err.message : 'Import failed');
+      const msg = err instanceof Error ? err.message : 'Import failed';
+      if (msg === 'GOOGLE_AUTH_EXPIRED') {
+        // Token expired — clear state and prompt re-auth
+        clearStoredToken();
+        setDriveSignedIn(false);
+        setDriveError('Google session expired. Please reconnect and try again.');
+      } else {
+        setDriveError(msg);
+      }
     } finally {
       setDriveLoading(false);
       setDriveStep('');

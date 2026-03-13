@@ -115,7 +115,37 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
+export function clearStoredToken(): void {
+  accessToken = null;
+  try {
+    localStorage.removeItem('gd_access_token');
+    localStorage.removeItem('gd_token_expiry');
+  } catch { /* ignore */ }
+}
+
 // ---------- Drive helpers ----------
+
+// Wrapper that detects 403 (expired/invalid token) and throws a typed error
+async function gapiRequest(opts: { path: string; params?: Record<string, string> }): Promise<{ result: unknown }> {
+  try {
+    const resp = await gapi.client.request(opts);
+    // gapi may embed an error status in result
+    const r = resp.result as { error?: { code?: number; message?: string } };
+    if (r?.error?.code === 401 || r?.error?.code === 403) {
+      clearStoredToken();
+      throw new Error('GOOGLE_AUTH_EXPIRED');
+    }
+    return resp;
+  } catch (err) {
+    // gapi throws an object like { result: { error: { code: 403 } }, status: 403 }
+    const e = err as { result?: { error?: { code?: number } }; status?: number };
+    if (e?.status === 401 || e?.status === 403 || e?.result?.error?.code === 401 || e?.result?.error?.code === 403) {
+      clearStoredToken();
+      throw new Error('GOOGLE_AUTH_EXPIRED');
+    }
+    throw err;
+  }
+}
 
 export async function listFolderContents(folderId: string): Promise<DriveFile[]> {
   const files: DriveFile[] = [];
@@ -129,7 +159,7 @@ export async function listFolderContents(folderId: string): Promise<DriveFile[]>
     };
     if (pageToken) params.pageToken = pageToken;
 
-    const resp = await gapi.client.request({ path: 'https://www.googleapis.com/drive/v3/files', params });
+    const resp = await gapiRequest({ path: 'https://www.googleapis.com/drive/v3/files', params });
     const data = resp.result as { files?: DriveFile[]; nextPageToken?: string };
     if (data.files) files.push(...data.files);
     pageToken = data.nextPageToken;
@@ -139,7 +169,7 @@ export async function listFolderContents(folderId: string): Promise<DriveFile[]>
 }
 
 export async function readGoogleDoc(docId: string): Promise<string> {
-  const resp = await gapi.client.request({
+  const resp = await gapiRequest({
     path: `https://docs.googleapis.com/v1/documents/${docId}`,
   });
 
