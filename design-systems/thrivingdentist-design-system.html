@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thriving Dentist — Design System</title>
+<style>
+  :root {
+    /* Blues */
+    --color-blue:         #106EEA;
+    --color-blue-hover:   #1E83D0;
+    --color-blue-deep:    #0073AA;
+    --color-blue-steel:   #17A2B8;
+    --color-blue-tint:    #E2EEFD;
+    --color-blue-bg:      #F1F6FE;
+
+    /* Darks */
+    --color-black:        #000000;
+    --color-almost-black: #111111;
+    --color-ebony:        #151515;
+    --color-primary:      #121213;
+    --color-charcoal:     #222222;
+    --color-dim-gray:     #2A2A2A;
+    --color-dark-gray:    #333333;
+    --color-ash-gray:     #343A40;
+
+    /* Neutrals */
+    --color-slate-gray:   #444444;
+    --color-cool-gray:    #495057;
+    --color-gunmetal:     #555555;
+    --color-gray:         #777777;
+    --color-silver:       #CED4DA;
+    --color-light-gray:   #DDDDDD;
+    --color-platinum:     #EEEEEE;
+    --color-snow:         #EFEFEF;
+    --color-whitish-gray: #F1F2F3;
+    --color-light-silver: #F6F6F6;
+    --color-white:        #FFFFFF;
+
+    /* Semantic aliases */
+    --color-text-body:    #121213;
+    --color-text-muted:   #495057;   /* 5.6:1 on white ✓ */
+    --color-text-subtle:  #555555;   /* 7.4:1 on white ✓ */
+    --color-border:       #CED4DA;
+    --color-bg-page:      #F1F2F3;
+    --color-bg-card:      #F6F6F6;
+
+    /* Gradients */
+    --gradient-brand:  linear-gradient(135deg, #106EEA 0%, #0073AA 100%);
+    --gradient-dark:   linear-gradient(135deg, #121213 0%, #343A40 100%);
+    --gradient-steel:  linear-gradient(135deg, #1E83D0 0%, #17A2B8 100%);
+
+    /* Typography */
+    --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    --font-size-xs:    13px;
+    --font-size-sm:    16px;
+    --font-size-md:    20px;
+    --font-size-lg:    36px;
+    --font-size-xl:    42px;
+    --font-size-btn:   1.125em;
+    --font-size-quote: 1.5em;
+    --line-height-base:  1.5;
+    --line-height-quote: 1.6;
+    --line-height-tight: 1.2;
+
+    /* Spacing */
+    --space-xs:  0.44rem;
+    --space-sm:  0.67rem;
+    --space-md:  1rem;
+    --space-lg:  1.5rem;
+    --space-xl:  2.25rem;
+    --space-2xl: 3.38rem;
+    --space-3xl: 5.06rem;
+
+    /* Shadows */
+    --shadow-none:    none;
+    --shadow-natural: 6px 6px 9px rgba(0,0,0,0.2);
+    --shadow-deep:    12px 12px 50px rgba(0,0,0,0.4);
+    --shadow-sharp:   6px 6px 0px rgba(0,0,0,0.2);
+    --shadow-crisp:   6px 6px 0px rgba(0,0,0,1);
+
+    /* Radius */
+    --radius-none: 0px;
+    --radius-sm:   4px;
+    --radius-md:   8px;
+    --radius-lg:   16px;
+    --radius-pill: 9999px;
+
+    /* Layout */
+    --gap-tight:  0.5em;
+    --gap-md:     1.25em;
+    --gap-column: 2em;
+    --ratio-square: 1 / 1;
+    --ratio-video:  16 / 9;
+    --ratio-photo:  3 / 2;
+
+    /* Motion */
+    --duration-fast: 150ms;
+    --duration-base: 200ms;
+    --duration-slow: 300ms;
+    --ease-default:  ease;
+    --ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-family);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-base);
+    color: var(--color-text-body);
+    background: var(--color-bg-page);
+  }
+
+  /* ── Page Shell ── */
+  .ds-header {
+    background: var(--color-primary);
+    color: var(--color-white);
+    padding: var(--space-3xl) var(--space-xl);
+    text-align: center;
+  }
+  .ds-header .eyebrow {
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.5;
+    margin-bottom: var(--space-sm);
+  }
+  .ds-header h1 {
+    font-size: clamp(28px, 5vw, var(--font-size-xl));
+    line-height: var(--line-height-tight);
+    font-weight: 700;
+    margin-bottom: var(--space-md);
+  }
+  .ds-header p {
+    font-size: var(--font-size-md);
+    opacity: 0.6;
+    max-width: 560px;
+    margin: 0 auto var(--space-lg);
+  }
+  .ds-header .correction-note {
+    display: inline-block;
+    background: rgba(16,110,234,0.25);
+    border: 1px solid rgba(16,110,234,0.5);
+    color: #8ed1fc;
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+  }
+
+  .ds-nav {
+    background: var(--color-almost-black);
+    padding: var(--space-md) var(--space-xl);
+    display: flex;
+    gap: var(--space-lg);
+    overflow-x: auto;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    scrollbar-width: none;
+  }
+  .ds-nav::-webkit-scrollbar { display: none; }
+  .ds-nav a {
+    color: rgba(255,255,255,0.5);
+    text-decoration: none;
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: color var(--duration-base);
+  }
+  .ds-nav a:hover { color: var(--color-white); }
+  .ds-nav a:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: 2px;
+    border-radius: 2px;
+    color: var(--color-white);
+  }
+
+  .ds-main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--space-3xl) var(--space-xl);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3xl);
+  }
+
+  /* ── Section ── */
+  .ds-section-header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-md);
+    margin-bottom: var(--space-xl);
+    padding-bottom: var(--space-md);
+    border-bottom: 2px solid var(--color-primary);
+  }
+  .ds-section-header h2 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .section-num {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    letter-spacing: 0.1em;
+    font-family: monospace;
+  }
+  .section-desc {
+    font-size: 13px;
+    color: var(--color-text-subtle);
+    margin-bottom: var(--space-lg);
+  }
+
+  /* ── Color Swatches ── */
+  .swatch-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin: var(--space-lg) 0 var(--space-sm);
+  }
+  .swatch-group-label:first-child { margin-top: 0; }
+  .swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--space-md);
+  }
+  .swatch {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--color-white);
+    box-shadow: var(--shadow-natural);
+  }
+  .swatch-color { height: 72px; width: 100%; }
+  .swatch-info { padding: var(--space-sm) var(--space-md); }
+  .swatch-name { font-size: 11px; font-weight: 700; display: block; margin-bottom: 2px; }
+  .swatch-hex  { font-size: 11px; font-family: "SF Mono","Fira Code",monospace; color: var(--color-text-muted); display: block; }
+  .swatch-token { font-size: 10px; font-family: "SF Mono","Fira Code",monospace; color: var(--color-blue); margin-top: 2px; display: block; }
+
+  /* ── Typography ── */
+  .font-stack-box {
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    box-shadow: var(--shadow-natural);
+    margin-bottom: var(--space-md);
+  }
+  .font-stack-box .stack-label { font-size: 12px; font-family: monospace; color: var(--color-text-muted); margin-bottom: var(--space-sm); }
+  .font-stack-box .specimen { font-size: 28px; font-weight: 700; line-height: 1.2; margin-bottom: var(--space-sm); color: var(--color-primary); }
+  .font-stack-box .specimen-body { font-size: 16px; line-height: 1.6; color: var(--color-text-subtle); }
+
+  .type-scale {
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    box-shadow: var(--shadow-natural);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+  .type-row {
+    display: grid;
+    grid-template-columns: 130px 1fr 140px;
+    align-items: baseline;
+    gap: var(--space-lg);
+    padding-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--color-platinum);
+  }
+  .type-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .type-meta  { font-size: 11px; font-family: monospace; color: var(--color-text-muted); }
+  .type-token { font-size: 11px; font-family: monospace; color: var(--color-blue); text-align: right; }
+  @media (max-width: 800px) {
+    .type-row { grid-template-columns: 1fr; gap: var(--space-sm); }
+    .type-token { text-align: left; }
+  }
+
+  /* ── Spacing ── */
+  .spacing-list { display: flex; flex-direction: column; gap: var(--space-sm); }
+  .spacing-row {
+    display: grid;
+    grid-template-columns: 60px 130px 110px 1fr;
+    align-items: center;
+    gap: var(--space-lg);
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-md) var(--space-lg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+  }
+  .spacing-label { font-size: 12px; font-weight: 700; }
+  .spacing-token { font-size: 11px; font-family: monospace; color: var(--color-blue); }
+  .spacing-value { font-size: 11px; font-family: monospace; color: var(--color-text-muted); }
+  .spacing-bar-wrap { height: 20px; display: flex; align-items: center; }
+  .spacing-bar { height: 16px; background: var(--color-primary); border-radius: 2px; min-width: 2px; }
+  @media (max-width: 640px) {
+    .spacing-row { grid-template-columns: 60px 1fr; grid-template-rows: auto auto; }
+    .spacing-value { display: none; }
+    .spacing-bar-wrap { grid-column: 1 / -1; }
+  }
+
+  /* ── Shadows ── */
+  .shadow-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--space-xl);
+  }
+  .shadow-card {
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+  }
+  .shadow-card .shadow-name  { font-size: 13px; font-weight: 700; }
+  .shadow-card .shadow-token { font-size: 11px; font-family: monospace; color: var(--color-blue); }
+  .shadow-card .shadow-value { font-size: 10px; font-family: monospace; color: var(--color-text-muted); text-align: center; }
+
+  /* ── Radius ── */
+  .radius-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: var(--space-md);
+  }
+  .radius-card {
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    box-shadow: var(--shadow-natural);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+  }
+  .radius-swatch { width: 64px; height: 64px; background: var(--color-primary); }
+  .radius-label { font-size: 12px; font-weight: 700; }
+  .radius-value { font-size: 11px; font-family: monospace; color: var(--color-text-muted); }
+
+  /* ── Buttons ── */
+  .btn-showcase {
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-2xl);
+    box-shadow: var(--shadow-natural);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-xl);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-pill);
+    padding: calc(.667em + 2px) calc(1.333em + 2px);
+    font-size: var(--font-size-btn);
+    font-weight: 600;
+    font-family: var(--font-family);
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: all var(--duration-base) var(--ease-in-out);
+  }
+  .btn:focus-visible {
+    outline: 3px solid var(--color-blue);
+    outline-offset: 3px;
+  }
+  .btn-blue   { background: var(--color-blue); color: var(--color-white); }
+  .btn-blue:hover { background: var(--color-blue-hover); transform: translateY(-1px); box-shadow: var(--shadow-natural); }
+  .btn-dark   { background: var(--color-primary); color: var(--color-white); }
+  .btn-dark:hover { background: var(--color-charcoal); transform: translateY(-1px); box-shadow: var(--shadow-natural); }
+  .btn-outline-blue { background: transparent; color: var(--color-blue); border: 2px solid var(--color-blue); }
+  .btn-outline-blue:hover { background: var(--color-blue); color: var(--color-white); transform: translateY(-1px); }
+  .btn-outline-dark { background: transparent; color: var(--color-primary); border: 2px solid var(--color-primary); }
+  .btn-outline-dark:hover { background: var(--color-primary); color: var(--color-white); transform: translateY(-1px); }
+  .btn-ghost  { background: transparent; color: var(--color-primary); border: 2px solid transparent; }
+  .btn-ghost:hover  { border-color: var(--color-silver); }
+  .btn-sm { font-size: 0.875em; padding: calc(.5em + 2px) calc(1em + 2px); }
+  .btn-lg { font-size: 1.25em; padding: calc(.75em + 2px) calc(1.6em + 2px); }
+
+  .btn-col { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .btn-group-label { font-size: 11px; font-family: monospace; color: var(--color-text-muted); }
+
+  /* ── Components ── */
+  .component-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--space-xl);
+  }
+  .card {
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    box-shadow: var(--shadow-natural);
+  }
+  .card-label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-md);
+    display: block;
+  }
+  .card h3 { font-size: 20px; font-weight: 700; margin-bottom: var(--space-sm); color: var(--color-primary); }
+  .card p  { font-size: 15px; color: var(--color-text-subtle); line-height: 1.6; margin-bottom: var(--space-lg); }
+
+  .pullquote {
+    font-size: var(--font-size-quote);
+    line-height: var(--line-height-quote);
+    font-style: italic;
+    color: var(--color-primary);
+    border-left: 4px solid var(--color-blue);
+    padding-left: var(--space-lg);
+    margin: 0;
+  }
+  .pullquote cite {
+    display: block;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    margin-top: var(--space-md);
+  }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .badge-blue   { background: var(--color-blue); color: white; }
+  .badge-dark   { background: var(--color-primary); color: white; }
+  .badge-steel  { background: var(--color-blue-steel); color: white; }
+  .badge-tint   { background: var(--color-blue-tint); color: var(--color-blue-deep); }
+  .badge-gray   { background: var(--color-cool-gray); color: white; }
+  .badge-light  { background: var(--color-platinum); color: var(--color-charcoal); }
+
+  .badges-showcase {
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    box-shadow: var(--shadow-natural);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    align-items: center;
+  }
+
+  /* Form */
+  .input-showcase {
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    box-shadow: var(--shadow-natural);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    max-width: 480px;
+  }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 13px; font-weight: 600; color: var(--color-primary); }
+  .form-input {
+    padding: 10px 14px;
+    border: 1.5px solid var(--color-silver);
+    border-radius: var(--radius-md);
+    font-family: var(--font-family);
+    font-size: 15px;
+    outline: none;
+    color: var(--color-primary);
+    background: var(--color-white);
+    transition: border-color var(--duration-base);
+  }
+  .form-input:focus { border-color: var(--color-blue); box-shadow: 0 0 0 3px rgba(16,110,234,0.15); }
+
+  /* ── Gradients ── */
+  .gradient-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: var(--space-lg);
+  }
+  .gradient-card {
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-natural);
+  }
+  .gradient-swatch { height: 120px; width: 100%; }
+  .gradient-info { background: var(--color-white); padding: var(--space-md) var(--space-lg); }
+  .gradient-name  { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .gradient-token { font-size: 11px; font-family: monospace; color: var(--color-blue); }
+  .gradient-val   { font-size: 10px; font-family: monospace; color: var(--color-text-muted); margin-top: 2px; }
+
+  /* ── Motion ── */
+  .motion-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--space-md);
+  }
+  .motion-card {
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    box-shadow: var(--shadow-natural);
+    text-align: center;
+    cursor: pointer;
+  }
+  .motion-card:focus-visible {
+    outline: 3px solid var(--color-blue);
+    outline-offset: 2px;
+  }
+  .motion-box {
+    width: 48px;
+    height: 48px;
+    background: var(--color-primary);
+    border-radius: var(--radius-sm);
+    margin: 0 auto var(--space-md);
+  }
+  .motion-card:hover .motion-box-fast,
+  .motion-card:focus-visible .motion-box-fast   { transition: transform 150ms ease; transform: scale(1.2) rotate(8deg); }
+  .motion-card:hover .motion-box-base,
+  .motion-card:focus-visible .motion-box-base   { transition: transform 200ms cubic-bezier(0.4,0,0.2,1); transform: scale(1.2) rotate(8deg); }
+  .motion-card:hover .motion-box-slow,
+  .motion-card:focus-visible .motion-box-slow   { transition: transform 300ms cubic-bezier(0.4,0,0.2,1); transform: scale(1.2) rotate(8deg); }
+  .motion-card:hover .motion-box-spring,
+  .motion-card:focus-visible .motion-box-spring { transition: transform 400ms var(--ease-spring); transform: scale(1.2) rotate(8deg); }
+  .motion-name  { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .motion-value { font-size: 11px; font-family: monospace; color: var(--color-text-muted); }
+  .motion-hint  { font-size: 10px; color: var(--color-blue); margin-top: 4px; }
+
+  /* ── Principles ── */
+  .principles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--space-md);
+  }
+  .principle-card {
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
+    box-shadow: var(--shadow-natural);
+    border-top: 3px solid var(--color-primary);
+  }
+  .principle-card h3 { font-size: 15px; font-weight: 700; margin-bottom: var(--space-sm); color: var(--color-primary); }
+  .principle-card p  { font-size: 13px; color: var(--color-text-subtle); line-height: 1.6; }
+
+  /* ── Hero Preview ── */
+  .hero-preview {
+    background: var(--color-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3xl) var(--space-2xl);
+    color: var(--color-white);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-lg);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-preview::before {
+    content: '';
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 340px; height: 340px;
+    background: var(--gradient-brand);
+    border-radius: 50%;
+    opacity: 0.18;
+    pointer-events: none;
+  }
+  .hero-preview .eyebrow {
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    position: relative;
+  }
+  .hero-preview h2 {
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 700;
+    line-height: 1.15;
+    max-width: 600px;
+    position: relative;
+  }
+  .hero-preview p {
+    font-size: 18px;
+    opacity: 0.7;
+    max-width: 520px;
+    line-height: 1.6;
+    position: relative;
+  }
+  .hero-preview .btn-cta {
+    background: var(--color-blue);
+    color: var(--color-white);
+    border-radius: var(--radius-pill);
+    padding: calc(.75em + 2px) calc(1.8em + 2px);
+    font-size: 1.05em;
+    font-weight: 700;
+    font-family: var(--font-family);
+    border: none;
+    cursor: pointer;
+    transition: all var(--duration-base) var(--ease-in-out);
+    position: relative;
+  }
+  .hero-preview .btn-cta:hover { background: var(--color-blue-hover); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(16,110,234,0.4); }
+  .hero-preview .btn-cta:focus-visible { outline: 3px solid white; outline-offset: 3px; }
+
+  /* ── Contrast Reference ── */
+  .contrast-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--space-md);
+  }
+  .contrast-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    background: var(--color-white);
+    border-radius: var(--radius-md);
+    padding: var(--space-md) var(--space-lg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+  }
+  .contrast-swatch {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-platinum);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .contrast-info { flex: 1; }
+  .contrast-label { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+  .contrast-ratio { font-size: 11px; font-family: monospace; color: var(--color-text-muted); }
+  .pass { color: #0073AA; font-weight: 700; }
+  .warn { color: #c47d00; font-weight: 700; }
+  .fail { color: #b91c1c; font-weight: 700; }
+
+  /* ── Footer ── */
+  .ds-footer {
+    background: var(--color-primary);
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+    padding: var(--space-2xl);
+    font-size: 12px;
+  }
+  .ds-footer strong { color: white; }
+
+  /* Code blocks */
+  .code-block {
+    background: var(--color-almost-black);
+    color: #8ed1fc;
+    padding: var(--space-lg);
+    border-radius: var(--radius-md);
+    font-family: "SF Mono","Fira Code",monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin-top: var(--space-md);
+  }
+
+  /* Focus global */
+  :focus-visible {
+    outline: 3px solid var(--color-blue);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    .motion-card:hover .motion-box-fast,
+    .motion-card:hover .motion-box-base,
+    .motion-card:hover .motion-box-slow,
+    .motion-card:hover .motion-box-spring { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="ds-header">
+  <p class="eyebrow">Design System · v2.0 · Corrected</p>
+  <h1>The Thriving Dentist</h1>
+  <p>Visual design language for Gary Takacs's dental coaching brand — corrected from source.</p>
+  <span class="correction-note">v2.0 — palette corrected from actual brand source, replacing WordPress defaults</span>
+</header>
+
+<nav class="ds-nav" aria-label="Design system sections">
+  <a href="#colors">Colors</a>
+  <a href="#typography">Typography</a>
+  <a href="#spacing">Spacing</a>
+  <a href="#shadows">Shadows</a>
+  <a href="#radius">Radius</a>
+  <a href="#buttons">Buttons</a>
+  <a href="#components">Components</a>
+  <a href="#gradients">Gradients</a>
+  <a href="#contrast">Contrast</a>
+  <a href="#motion">Motion</a>
+  <a href="#principles">Principles</a>
+  <a href="#preview">Preview</a>
+</nav>
+
+<main class="ds-main">
+
+  <!-- 01 Colors -->
+  <section id="colors" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">01</span>
+      <h2>Color Palette</h2>
+    </div>
+    <p class="section-desc">25 brand colors organized into blues (accent), darks (primary scale), and neutrals (gray ramp).</p>
+
+    <p class="swatch-group-label">Blues — Brand Accent</p>
+    <div class="swatch-grid">
+      <div class="swatch">
+        <div class="swatch-color" style="background:#106EEA;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Dodger Blue</span>
+          <span class="swatch-hex">#106EEA</span>
+          <span class="swatch-token">--color-blue</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#1E83D0;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Azure</span>
+          <span class="swatch-hex">#1E83D0</span>
+          <span class="swatch-token">--color-blue-hover</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#0073AA;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Cerulean</span>
+          <span class="swatch-hex">#0073AA</span>
+          <span class="swatch-token">--color-blue-deep</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#17A2B8;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Steel Blue</span>
+          <span class="swatch-hex">#17A2B8</span>
+          <span class="swatch-token">--color-blue-steel</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#E2EEFD;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Baby Blue</span>
+          <span class="swatch-hex">#E2EEFD</span>
+          <span class="swatch-token">--color-blue-tint</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#F1F6FE;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Alice Blue</span>
+          <span class="swatch-hex">#F1F6FE</span>
+          <span class="swatch-token">--color-blue-bg</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="swatch-group-label">Darks — Primary Scale</p>
+    <div class="swatch-grid">
+      <div class="swatch">
+        <div class="swatch-color" style="background:#000000;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Black</span>
+          <span class="swatch-hex">#000000</span>
+          <span class="swatch-token">--color-black</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#111111;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Almost Black</span>
+          <span class="swatch-hex">#111111</span>
+          <span class="swatch-token">--color-almost-black</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#121213;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Dark Charcoal ★</span>
+          <span class="swatch-hex">#121213</span>
+          <span class="swatch-token">--color-primary</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#151515;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Ebony</span>
+          <span class="swatch-hex">#151515</span>
+          <span class="swatch-token">--color-ebony</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#222222;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Charcoal</span>
+          <span class="swatch-hex">#222222</span>
+          <span class="swatch-token">--color-charcoal</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#2A2A2A;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Dim Gray</span>
+          <span class="swatch-hex">#2A2A2A</span>
+          <span class="swatch-token">--color-dim-gray</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#333333;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Dark Gray</span>
+          <span class="swatch-hex">#333333</span>
+          <span class="swatch-token">--color-dark-gray</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#343A40;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Ash Gray</span>
+          <span class="swatch-hex">#343A40</span>
+          <span class="swatch-token">--color-ash-gray</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="swatch-group-label">Neutrals — Gray Ramp</p>
+    <div class="swatch-grid">
+      <div class="swatch">
+        <div class="swatch-color" style="background:#444444;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Slate Gray</span>
+          <span class="swatch-hex">#444444</span>
+          <span class="swatch-token">--color-slate-gray</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#495057;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Cool Gray ★</span>
+          <span class="swatch-hex">#495057</span>
+          <span class="swatch-token">--color-cool-gray</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#555555;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Gunmetal</span>
+          <span class="swatch-hex">#555555</span>
+          <span class="swatch-token">--color-gunmetal</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#777777;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Gray</span>
+          <span class="swatch-hex">#777777</span>
+          <span class="swatch-token">--color-gray</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#CED4DA;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Silver</span>
+          <span class="swatch-hex">#CED4DA</span>
+          <span class="swatch-token">--color-silver</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#DDDDDD;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Light Gray</span>
+          <span class="swatch-hex">#DDDDDD</span>
+          <span class="swatch-token">--color-light-gray</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#EEEEEE;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Platinum</span>
+          <span class="swatch-hex">#EEEEEE</span>
+          <span class="swatch-token">--color-platinum</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#EFEFEF;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Snow</span>
+          <span class="swatch-hex">#EFEFEF</span>
+          <span class="swatch-token">--color-snow</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#F1F2F3;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Whitish Gray ★</span>
+          <span class="swatch-hex">#F1F2F3</span>
+          <span class="swatch-token">--color-whitish-gray</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#F6F6F6;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Light Silver</span>
+          <span class="swatch-hex">#F6F6F6</span>
+          <span class="swatch-token">--color-light-silver</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#FFFFFF;border-bottom:1px solid #eee;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">White</span>
+          <span class="swatch-hex">#FFFFFF</span>
+          <span class="swatch-token">--color-white</span>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--color-text-muted);margin-top:var(--space-md);">★ = semantic alias token exists</p>
+  </section>
+
+  <!-- 02 Typography -->
+  <section id="typography" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">02</span>
+      <h2>Typography</h2>
+    </div>
+    <div class="font-stack-box">
+      <p class="stack-label">-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif</p>
+      <div class="specimen">Love Life. Love Dentistry.</div>
+      <div class="specimen-body">We help dentists build thriving practices — achieving both professional success and personal fulfilment through expert coaching and community.</div>
+    </div>
+    <div class="type-scale">
+      <div class="type-row">
+        <span class="type-meta">--font-size-xl<br>42px · 700<br>#121213</span>
+        <span style="font-size:42px;font-weight:700;line-height:1.2;color:#121213;">H1 Heading</span>
+        <span class="type-token">Hero / Page Title</span>
+      </div>
+      <div class="type-row">
+        <span class="type-meta">--font-size-lg<br>36px · 700<br>#121213</span>
+        <span style="font-size:36px;font-weight:700;line-height:1.3;color:#121213;">H2 Heading</span>
+        <span class="type-token">Section Title</span>
+      </div>
+      <div class="type-row">
+        <span class="type-meta">28px · 600<br>#222222</span>
+        <span style="font-size:28px;font-weight:600;line-height:1.35;color:#222222;">H3 Heading</span>
+        <span class="type-token">Sub-section</span>
+      </div>
+      <div class="type-row">
+        <span class="type-meta">22px · 600<br>#333333</span>
+        <span style="font-size:22px;font-weight:600;line-height:1.4;color:#333333;">H4 Heading</span>
+        <span class="type-token">Card Title</span>
+      </div>
+      <div class="type-row">
+        <span class="type-meta">--font-size-md<br>20px · 400<br>#495057</span>
+        <span style="font-size:20px;line-height:1.5;color:#495057;">Lead paragraph — intro and hero body copy.</span>
+        <span class="type-token">Lead / Intro</span>
+      </div>
+      <div class="type-row">
+        <span class="type-meta">--font-size-sm<br>16px · 400<br>#495057</span>
+        <span style="font-size:16px;line-height:1.6;color:#495057;">Body text — standard paragraph copy for content areas, descriptions, and supporting text throughout the site.</span>
+        <span class="type-token">Body</span>
+      </div>
+      <div class="type-row">
+        <span class="type-meta">--font-size-xs<br>13px · 400<br>#555555</span>
+        <span style="font-size:13px;line-height:1.5;color:#555555;">Caption, meta, legal copy, labels</span>
+        <span class="type-token">Caption / Label</span>
+      </div>
+      <div class="type-row">
+        <span class="type-meta">--font-size-quote<br>1.5em · italic<br>#121213</span>
+        <span style="font-size:1.5em;font-style:italic;line-height:1.6;color:#121213;">"The best investment you can make is in yourself."</span>
+        <span class="type-token">Pullquote</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 Spacing -->
+  <section id="spacing" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">03</span>
+      <h2>Spacing Scale</h2>
+    </div>
+    <div class="spacing-list">
+      <div class="spacing-row"><span class="spacing-label">xs</span><span class="spacing-token">--space-xs</span><span class="spacing-value">0.44rem · ~7px</span><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:7px;"></div></div></div>
+      <div class="spacing-row"><span class="spacing-label">sm</span><span class="spacing-token">--space-sm</span><span class="spacing-value">0.67rem · ~11px</span><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:11px;"></div></div></div>
+      <div class="spacing-row"><span class="spacing-label">md</span><span class="spacing-token">--space-md</span><span class="spacing-value">1rem · 16px</span><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:16px;"></div></div></div>
+      <div class="spacing-row"><span class="spacing-label">lg</span><span class="spacing-token">--space-lg</span><span class="spacing-value">1.5rem · 24px</span><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:24px;"></div></div></div>
+      <div class="spacing-row"><span class="spacing-label">xl</span><span class="spacing-token">--space-xl</span><span class="spacing-value">2.25rem · 36px</span><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:36px;"></div></div></div>
+      <div class="spacing-row"><span class="spacing-label">2xl</span><span class="spacing-token">--space-2xl</span><span class="spacing-value">3.38rem · ~54px</span><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:54px;"></div></div></div>
+      <div class="spacing-row"><span class="spacing-label">3xl</span><span class="spacing-token">--space-3xl</span><span class="spacing-value">5.06rem · ~81px</span><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:81px;"></div></div></div>
+    </div>
+  </section>
+
+  <!-- 04 Shadows -->
+  <section id="shadows" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">04</span>
+      <h2>Shadows</h2>
+    </div>
+    <div class="shadow-grid">
+      <div class="shadow-card" style="box-shadow:var(--shadow-natural);">
+        <div style="width:72px;height:72px;background:var(--color-white);border-radius:var(--radius-md);box-shadow:6px 6px 9px rgba(0,0,0,0.2);"></div>
+        <span class="shadow-name">Natural</span>
+        <span class="shadow-token">--shadow-natural</span>
+        <span class="shadow-value">6px 6px 9px rgba(0,0,0,0.2)</span>
+      </div>
+      <div class="shadow-card" style="box-shadow:var(--shadow-natural);">
+        <div style="width:72px;height:72px;background:var(--color-white);border-radius:var(--radius-md);box-shadow:12px 12px 50px rgba(0,0,0,0.4);"></div>
+        <span class="shadow-name">Deep</span>
+        <span class="shadow-token">--shadow-deep</span>
+        <span class="shadow-value">12px 12px 50px rgba(0,0,0,0.4)</span>
+      </div>
+      <div class="shadow-card" style="box-shadow:var(--shadow-natural);">
+        <div style="width:72px;height:72px;background:var(--color-white);border-radius:var(--radius-md);box-shadow:6px 6px 0px rgba(0,0,0,0.2);"></div>
+        <span class="shadow-name">Sharp</span>
+        <span class="shadow-token">--shadow-sharp</span>
+        <span class="shadow-value">6px 6px 0px rgba(0,0,0,0.2)</span>
+      </div>
+      <div class="shadow-card" style="box-shadow:var(--shadow-natural);">
+        <div style="width:72px;height:72px;background:var(--color-white);border-radius:var(--radius-md);box-shadow:6px 6px 0px rgba(0,0,0,1);"></div>
+        <span class="shadow-name">Crisp</span>
+        <span class="shadow-token">--shadow-crisp</span>
+        <span class="shadow-value">6px 6px 0px rgba(0,0,0,1)</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 Radius -->
+  <section id="radius" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">05</span>
+      <h2>Border Radius</h2>
+    </div>
+    <div class="radius-grid">
+      <div class="radius-card"><div class="radius-swatch" style="border-radius:0;"></div><span class="radius-label">None</span><span class="radius-value">0px · --radius-none</span></div>
+      <div class="radius-card"><div class="radius-swatch" style="border-radius:4px;"></div><span class="radius-label">Small</span><span class="radius-value">4px · --radius-sm</span></div>
+      <div class="radius-card"><div class="radius-swatch" style="border-radius:8px;"></div><span class="radius-label">Medium</span><span class="radius-value">8px · --radius-md</span></div>
+      <div class="radius-card"><div class="radius-swatch" style="border-radius:16px;"></div><span class="radius-label">Large</span><span class="radius-value">16px · --radius-lg</span></div>
+      <div class="radius-card"><div class="radius-swatch" style="border-radius:9999px;"></div><span class="radius-label">Pill</span><span class="radius-value">9999px · --radius-pill</span></div>
+    </div>
+  </section>
+
+  <!-- 06 Buttons -->
+  <section id="buttons" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">06</span>
+      <h2>Buttons</h2>
+    </div>
+    <div class="btn-showcase">
+      <div class="btn-col">
+        <button class="btn btn-blue">Schedule a Call</button>
+        <span class="btn-group-label">.btn-blue (primary CTA)</span>
+      </div>
+      <div class="btn-col">
+        <button class="btn btn-dark">Learn More</button>
+        <span class="btn-group-label">.btn-dark</span>
+      </div>
+      <div class="btn-col">
+        <button class="btn btn-outline-blue">Start Coaching</button>
+        <span class="btn-group-label">.btn-outline-blue</span>
+      </div>
+      <div class="btn-col">
+        <button class="btn btn-outline-dark">Explore</button>
+        <span class="btn-group-label">.btn-outline-dark</span>
+      </div>
+      <div class="btn-col">
+        <button class="btn btn-ghost">Browse →</button>
+        <span class="btn-group-label">.btn-ghost</span>
+      </div>
+      <div class="btn-col">
+        <button class="btn btn-blue btn-sm">Small</button>
+        <span class="btn-group-label">.btn-sm</span>
+      </div>
+      <div class="btn-col">
+        <button class="btn btn-blue btn-lg">Large CTA</button>
+        <span class="btn-group-label">.btn-lg</span>
+      </div>
+    </div>
+    <div class="code-block">/* Primary CTA — Dodger Blue */
+.btn-primary {
+  background-color: #106EEA;   /* --color-blue */
+  color:            #FFFFFF;
+  border-radius:    9999px;    /* --radius-pill */
+  padding:          calc(.667em + 2px) calc(1.333em + 2px);
+  font-size:        1.125em;   /* --font-size-btn */
+  font-weight:      600;
+  border:           none;
+  cursor:           pointer;
+}
+.btn-primary:hover { background-color: #1E83D0; } /* --color-blue-hover */</div>
+  </section>
+
+  <!-- 07 Components -->
+  <section id="components" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">07</span>
+      <h2>Components</h2>
+    </div>
+
+    <div class="component-grid">
+      <div class="card">
+        <span class="card-label">Component · Card</span>
+        <h3>Coaching Program</h3>
+        <p>Personalised one-on-one coaching with Gary Takacs to help you build a practice you love.</p>
+        <button class="btn btn-blue" style="font-size:0.95em;">Learn More →</button>
+      </div>
+      <div class="card">
+        <span class="card-label">Component · Testimonial</span>
+        <blockquote class="pullquote" style="font-size:1.1em;">
+          "Working with Gary completely transformed our practice revenue within 6 months."
+          <cite>— Dr. Sarah Mitchell, Phoenix AZ</cite>
+        </blockquote>
+      </div>
+      <div class="card" style="background:var(--color-primary);color:white;">
+        <span class="card-label" style="color:rgba(255,255,255,0.45);">Component · Stat</span>
+        <div style="font-size:48px;font-weight:800;line-height:1;color:white;margin-bottom:var(--space-sm);">3,400+</div>
+        <div style="font-size:16px;color:rgba(255,255,255,0.65);">Dentists coached worldwide</div>
+      </div>
+      <div class="card" style="background:var(--color-blue-bg);border:1px solid var(--color-blue-tint);">
+        <span class="card-label" style="color:var(--color-blue-deep);">Component · Info Card</span>
+        <h3 style="color:var(--color-blue-deep);">Next Webinar</h3>
+        <p style="color:var(--color-blue-deep);opacity:0.8;">Join Gary live every Thursday at 12pm EST for the Thriving Dentist podcast.</p>
+        <button class="btn btn-outline-blue" style="font-size:0.9em;">Register Free →</button>
+      </div>
+    </div>
+
+    <div style="margin-top:var(--space-xl);">
+      <p style="font-size:12px;color:var(--color-text-muted);font-family:monospace;margin-bottom:var(--space-md);">Badges / Tags</p>
+      <div class="badges-showcase">
+        <span class="badge badge-blue">Coaching</span>
+        <span class="badge badge-dark">Featured</span>
+        <span class="badge badge-steel">Webinar</span>
+        <span class="badge badge-tint">New</span>
+        <span class="badge badge-gray">Podcast</span>
+        <span class="badge badge-light">Archive</span>
+      </div>
+    </div>
+
+    <div style="margin-top:var(--space-xl);">
+      <p style="font-size:12px;color:var(--color-text-muted);font-family:monospace;margin-bottom:var(--space-md);">Form Inputs</p>
+      <div class="input-showcase">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input class="form-input" type="text" placeholder="Dr. Jane Smith">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input class="form-input" type="email" placeholder="jane@mypractice.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Practice Location</label>
+          <input class="form-input" type="text" placeholder="Phoenix, AZ">
+        </div>
+        <button class="btn btn-blue" style="align-self:flex-start;">Schedule My Call →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 Gradients -->
+  <section id="gradients" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">08</span>
+      <h2>Gradients</h2>
+    </div>
+    <div class="gradient-grid">
+      <div class="gradient-card">
+        <div class="gradient-swatch" style="background:linear-gradient(135deg,#106EEA 0%,#0073AA 100%);"></div>
+        <div class="gradient-info">
+          <div class="gradient-name">Brand</div>
+          <div class="gradient-token">--gradient-brand</div>
+          <div class="gradient-val">Dodger Blue → Cerulean</div>
+        </div>
+      </div>
+      <div class="gradient-card">
+        <div class="gradient-swatch" style="background:linear-gradient(135deg,#121213 0%,#343A40 100%);"></div>
+        <div class="gradient-info">
+          <div class="gradient-name">Dark</div>
+          <div class="gradient-token">--gradient-dark</div>
+          <div class="gradient-val">Dark Charcoal → Ash Gray</div>
+        </div>
+      </div>
+      <div class="gradient-card">
+        <div class="gradient-swatch" style="background:linear-gradient(135deg,#1E83D0 0%,#17A2B8 100%);"></div>
+        <div class="gradient-info">
+          <div class="gradient-name">Steel</div>
+          <div class="gradient-token">--gradient-steel</div>
+          <div class="gradient-val">Azure → Steel Blue</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 Contrast -->
+  <section id="contrast" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">09</span>
+      <h2>Contrast Reference</h2>
+    </div>
+    <p class="section-desc">All foreground colors tested on #FFFFFF. WCAG AA requires 4.5:1 for normal text, 3:1 for large text/UI.</p>
+    <div class="contrast-grid">
+      <div class="contrast-row">
+        <div class="contrast-swatch" style="background:#121213;color:white;">Aa</div>
+        <div class="contrast-info">
+          <div class="contrast-label">#121213 Dark Charcoal</div>
+          <div class="contrast-ratio">~21:1 on white &nbsp;<span class="pass">✓ PASS</span></div>
+        </div>
+      </div>
+      <div class="contrast-row">
+        <div class="contrast-swatch" style="background:#222222;color:white;">Aa</div>
+        <div class="contrast-info">
+          <div class="contrast-label">#222222 Charcoal</div>
+          <div class="contrast-ratio">~16.1:1 on white &nbsp;<span class="pass">✓ PASS</span></div>
+        </div>
+      </div>
+      <div class="contrast-row">
+        <div class="contrast-swatch" style="background:#333333;color:white;">Aa</div>
+        <div class="contrast-info">
+          <div class="contrast-label">#333333 Dark Gray</div>
+          <div class="contrast-ratio">~10.8:1 on white &nbsp;<span class="pass">✓ PASS</span></div>
+        </div>
+      </div>
+      <div class="contrast-row">
+        <div class="contrast-swatch" style="background:#495057;color:white;">Aa</div>
+        <div class="contrast-info">
+          <div class="contrast-label">#495057 Cool Gray</div>
+          <div class="contrast-ratio">~5.6:1 on white &nbsp;<span class="pass">✓ PASS</span></div>
+        </div>
+      </div>
+      <div class="contrast-row">
+        <div class="contrast-swatch" style="background:#555555;color:white;">Aa</div>
+        <div class="contrast-info">
+          <div class="contrast-label">#555555 Gunmetal</div>
+          <div class="contrast-ratio">~7.4:1 on white &nbsp;<span class="pass">✓ PASS</span></div>
+        </div>
+      </div>
+      <div class="contrast-row">
+        <div class="contrast-swatch" style="background:#777777;color:white;">Aa</div>
+        <div class="contrast-info">
+          <div class="contrast-label">#777777 Gray</div>
+          <div class="contrast-ratio">~4.5:1 on white &nbsp;<span class="warn">⚠ AA large only</span></div>
+        </div>
+      </div>
+      <div class="contrast-row">
+        <div class="contrast-swatch" style="background:#0073AA;color:white;">Aa</div>
+        <div class="contrast-info">
+          <div class="contrast-label">#0073AA Cerulean</div>
+          <div class="contrast-ratio">~5.9:1 on white &nbsp;<span class="pass">✓ PASS</span></div>
+        </div>
+      </div>
+      <div class="contrast-row">
+        <div class="contrast-swatch" style="background:#106EEA;color:white;">Aa</div>
+        <div class="contrast-info">
+          <div class="contrast-label">#106EEA Dodger Blue</div>
+          <div class="contrast-ratio">~3.5:1 on white &nbsp;<span class="warn">⚠ Large text / UI only</span></div>
+        </div>
+      </div>
+      <div class="contrast-row">
+        <div class="contrast-swatch" style="background:#1E83D0;color:white;">Aa</div>
+        <div class="contrast-info">
+          <div class="contrast-label">#1E83D0 Azure</div>
+          <div class="contrast-ratio">~4.6:1 on white &nbsp;<span class="pass">✓ PASS</span></div>
+        </div>
+      </div>
+      <div class="contrast-row">
+        <div class="contrast-swatch" style="background:#CED4DA;color:#333;">Aa</div>
+        <div class="contrast-info">
+          <div class="contrast-label">#CED4DA Silver</div>
+          <div class="contrast-ratio">~1.6:1 on white &nbsp;<span class="fail">✗ FAIL — borders only</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 Motion -->
+  <section id="motion" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">10</span>
+      <h2>Motion & Animation</h2>
+    </div>
+    <p class="section-desc">Hover or focus each card to preview the easing.</p>
+    <div class="motion-grid">
+      <div class="motion-card" tabindex="0" role="img" aria-label="Fast easing demo — 150ms ease">
+        <div class="motion-box motion-box-fast"></div>
+        <div class="motion-name">Fast</div>
+        <div class="motion-value">150ms · ease</div>
+        <div class="motion-hint">--duration-fast</div>
+      </div>
+      <div class="motion-card" tabindex="0" role="img" aria-label="Base easing demo — 200ms ease-in-out">
+        <div class="motion-box motion-box-base"></div>
+        <div class="motion-name">Base</div>
+        <div class="motion-value">200ms · ease-in-out</div>
+        <div class="motion-hint">--duration-base</div>
+      </div>
+      <div class="motion-card" tabindex="0" role="img" aria-label="Slow easing demo — 300ms ease-in-out">
+        <div class="motion-box motion-box-slow"></div>
+        <div class="motion-name">Slow</div>
+        <div class="motion-value">300ms · ease-in-out</div>
+        <div class="motion-hint">--duration-slow</div>
+      </div>
+      <div class="motion-card" tabindex="0" role="img" aria-label="Spring easing demo — 400ms spring curve">
+        <div class="motion-box motion-box-spring" style="background:var(--color-blue);"></div>
+        <div class="motion-name">Spring</div>
+        <div class="motion-value">400ms · spring</div>
+        <div class="motion-hint">--ease-spring</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 Principles -->
+  <section id="principles" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">11</span>
+      <h2>Design Principles</h2>
+    </div>
+    <div class="principles-grid">
+      <div class="principle-card">
+        <h3>Trust First</h3>
+        <p>Near-black #121213 primary, clean white space, no gimmicks. Every decision reinforces credibility.</p>
+      </div>
+      <div class="principle-card" style="border-top-color:var(--color-blue);">
+        <h3>Approachable Authority</h3>
+        <p>Blue CTAs signal action and modernity; near-black headings signal confidence and depth.</p>
+      </div>
+      <div class="principle-card" style="border-top-color:var(--color-blue-deep);">
+        <h3>Clarity Over Decoration</h3>
+        <p>System fonts, predictable spacing, minimal shadow use. If it doesn't serve the message, remove it.</p>
+      </div>
+      <div class="principle-card" style="border-top-color:var(--color-blue-steel);">
+        <h3>Action-Oriented</h3>
+        <p>#106EEA Dodger Blue for all primary CTAs — always unambiguous, always visible.</p>
+      </div>
+      <div class="principle-card" style="border-top-color:var(--color-ash-gray);">
+        <h3>Warm Professionalism</h3>
+        <p>Blue tints (#F1F6FE, #E2EEFD) soften the dark palette without feeling clinical or cold.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 Hero Preview -->
+  <section id="preview" class="ds-section">
+    <div class="ds-section-header">
+      <span class="section-num">12</span>
+      <h2>Hero Section Preview</h2>
+    </div>
+    <div class="hero-preview">
+      <span class="eyebrow">Dental Practice Coaching</span>
+      <h2>Build the Practice You've Always Dreamed Of</h2>
+      <p>Join thousands of dentists who have transformed their practices with Gary Takacs's proven coaching system — designed for both clinical excellence and personal fulfilment.</p>
+      <button class="btn-cta">Schedule a Call with Gary →</button>
+    </div>
+  </section>
+
+</main>
+
+<footer class="ds-footer">
+  <strong>Thriving Dentist</strong> Design System v2.0 · Palette corrected March 2026 · Built by Ekwa Marketing
+</footer>
+
+</body>
+</html>

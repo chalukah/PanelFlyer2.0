@@ -1,0 +1,6 @@
+{
+  "type": "commonjs",
+  "devDependencies": {
+    "puppeteer": "^24.39.1"
+  }
+}

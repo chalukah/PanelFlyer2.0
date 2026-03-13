@@ -1,0 +1,48 @@
+{
+  "eventTitle": "Dental Practice Growth Summit",
+  "eventSubtitle": "Building a Thriving Practice in the Modern Age",
+  "eventCategory": "Thriving Dentist Expert Panel",
+  "eventDate": "Wednesday, April 9th, 2026",
+  "eventDateShort": "April 9, 2026",
+  "eventDateMinus1": "Tuesday, April 8th, 2026",
+  "eventTime": "8:00 PM EST",
+  "website": "www.thrivingdentist.com",
+  "registrationUrl": "https://thrivingdentist.com/register",
+  "discussionPoints": [
+    "How to attract and retain high-value patients",
+    "Building a high-performance dental team",
+    "Mastering case acceptance without pressure",
+    "Leveraging technology to scale your practice",
+    "Creating a practice culture that patients love"
+  ],
+  "panelists": [
+    {
+      "name": "Dr. Sarah Mitchell, DDS",
+      "firstName": "Sarah",
+      "title": "Founder & CEO",
+      "org": "Apex Dental Coaching",
+      "headshotUrl": "https://randomuser.me/api/portraits/women/44.jpg"
+    },
+    {
+      "name": "Dr. James Thornton, DMD",
+      "firstName": "James",
+      "title": "Practice Growth Strategist",
+      "org": "ThriveSmile Consulting",
+      "headshotUrl": "https://randomuser.me/api/portraits/men/32.jpg"
+    },
+    {
+      "name": "Dr. Priya Nair, DDS",
+      "firstName": "Priya",
+      "title": "Clinical Director",
+      "org": "Modern Smile Collective",
+      "headshotUrl": "https://randomuser.me/api/portraits/women/68.jpg"
+    },
+    {
+      "name": "Dr. Marcus Webb, DMD",
+      "firstName": "Marcus",
+      "title": "Patient Experience Expert",
+      "org": "Webb Dental Group",
+      "headshotUrl": "https://randomuser.me/api/portraits/men/75.jpg"
+    }
+  ]
+}
