@@ -4,7 +4,7 @@
  */
 
 const CLIENT_ID = '480513141175-1l3o1oaaubm3b0glg0c6ddtpcmifcuj7.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/documents.readonly';
+const SCOPES = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents';
 
 // Types for gapi / GIS (minimal declarations so TS is happy)
 declare const gapi: {
@@ -34,7 +34,14 @@ export type DriveFile = {
   parents?: string[];
 };
 
-let accessToken: string | null = null;
+let accessToken: string | null = (() => {
+  try {
+    const stored = localStorage.getItem('gd_access_token');
+    const expiry = localStorage.getItem('gd_token_expiry');
+    if (stored && expiry && Date.now() < parseInt(expiry)) return stored;
+  } catch { /* ignore */ }
+  return null;
+})();
 let gapiInited = false;
 let tokenClient: ReturnType<typeof google.accounts.oauth2.initTokenClient> | null = null;
 
@@ -86,8 +93,14 @@ export async function signIn(): Promise<string> {
       callback: (resp) => {
         if (resp.error) return reject(new Error(resp.error));
         accessToken = resp.access_token ?? null;
-        if (accessToken) resolve(accessToken);
-        else reject(new Error('No access token'));
+        if (accessToken) {
+          try {
+            localStorage.setItem('gd_access_token', accessToken);
+            // Google tokens typically expire in 1 hour (3600 seconds)
+            localStorage.setItem('gd_token_expiry', String(Date.now() + 3600 * 1000));
+          } catch { /* ignore */ }
+          resolve(accessToken);
+        } else reject(new Error('No access token'));
       },
     });
     tokenClient.requestAccessToken();
@@ -129,13 +142,47 @@ export async function readGoogleDoc(docId: string): Promise<string> {
   const resp = await gapi.client.request({
     path: `https://docs.googleapis.com/v1/documents/${docId}`,
   });
-  const doc = resp.result as { body?: { content?: Array<{ paragraph?: { elements?: Array<{ textRun?: { content?: string } }> } }> } };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const doc = resp.result as any;
   let text = '';
-  for (const block of doc.body?.content ?? []) {
-    for (const el of block.paragraph?.elements ?? []) {
-      if (el.textRun?.content) text += el.textRun.content;
+
+  // Recursively extract text from all structural elements (paragraphs, tables, etc.)
+  function extractFromElements(elements: any[]): void {
+    for (const block of elements) {
+      // Regular paragraph
+      if (block.paragraph) {
+        for (const el of block.paragraph.elements ?? []) {
+          if (el.textRun?.content) text += el.textRun.content;
+        }
+      }
+      // Table — iterate rows → cells → content (which contains paragraphs)
+      if (block.table) {
+        for (const row of block.table.tableRows ?? []) {
+          const cellTexts: string[] = [];
+          for (const cell of row.tableCells ?? []) {
+            let cellText = '';
+            for (const cellBlock of cell.content ?? []) {
+              if (cellBlock.paragraph) {
+                for (const el of cellBlock.paragraph.elements ?? []) {
+                  if (el.textRun?.content) cellText += el.textRun.content.trim();
+                }
+              }
+            }
+            cellTexts.push(cellText);
+          }
+          // Join cells with " | " separator so table structure is readable
+          text += cellTexts.join(' | ') + '\n';
+        }
+      }
+      // Table of contents or other nested structures
+      if (block.tableOfContents?.content) {
+        extractFromElements(block.tableOfContents.content);
+      }
     }
   }
+
+  extractFromElements(doc.body?.content ?? []);
   return text;
 }
 

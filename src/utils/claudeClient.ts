@@ -87,3 +87,25 @@ export async function testClaudeConnection(
     return false;
   }
 }
+
+// --- Claude CLI (local subprocess via AI server) ---
+
+export async function sendToClaudeCLI(prompt: string, model?: string): Promise<string> {
+  const res = await fetch('http://localhost:3001/api/ai/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, model }),
+  });
+  if (!res.ok) throw new Error(`AI server error: ${res.status}`);
+  return res.text();
+}
+
+export async function checkClaudeCLIStatus(): Promise<{ connected: boolean; bin?: string; error?: string }> {
+  try {
+    const res = await fetch('http://localhost:3001/api/ai/status');
+    if (!res.ok) throw new Error('AI server not reachable');
+    return await res.json();
+  } catch {
+    return { connected: false, error: 'AI server not running on localhost:3001' };
+  }
+}

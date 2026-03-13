@@ -324,6 +324,7 @@ export function BannerGenerator() {
 
     panelists.forEach((p) => {
       const data: BannerData = {
+        headerText: 'Veterinary Business Institute Expert Panel',
         panelName,
         panelTopic,
         eventDate,
@@ -337,6 +338,7 @@ export function BannerGenerator() {
         allPanelists: allPanelistData,
         zoomRegistrationUrl: p.zoomUrl,
         verticalConfig,
+        theme: undefined,
       };
 
       allBanners.push(...generateBannersForPanelist(data));
