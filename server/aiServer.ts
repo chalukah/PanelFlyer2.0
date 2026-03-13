@@ -6,7 +6,7 @@ import { join } from 'path';
 
 const app = express();
 app.use(express.json({ limit: '5mb' }));
-app.use(cors({ origin: 'http://localhost:3000' }));
+app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'] }));
 
 // --- Claude Binary Resolution ---
 
@@ -207,4 +207,4 @@ app.post('/api/ai/generate', (req, res) => {
 });
 
 export { app };
-export const AI_SERVER_PORT = 3001;
+export const AI_SERVER_PORT = 3002;

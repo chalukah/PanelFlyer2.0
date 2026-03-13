@@ -922,7 +922,16 @@ ${banner.html}
 
       let parsedPanelists = await extractPanelistsWithAI(docText, files.map(f => f.name), claudeKey || undefined);
 
-      // Fallback to filename extraction if AI found nothing
+      // Filter out clearly invalid "panelist" names (doc headings, section titles, etc.)
+      const JUNK_NAME_PATTERNS = /^(zoom|landing|page|partner|details|promotional|material|registration|overview|agenda|schedule|notes|draft|template|untitled|document|reducing|increasing|improving|building|how|what|why|when|the |this |our |your |panel|expert|topic|discussion|date|time|location|event|webinar|register)/i;
+      parsedPanelists = parsedPanelists.filter(p =>
+        p.name.trim().length > 2 &&
+        !JUNK_NAME_PATTERNS.test(p.name.trim()) &&
+        // Real names have 2+ words or a Dr. prefix
+        (p.name.trim().includes(' ') || /^dr\./i.test(p.name.trim()))
+      );
+
+      // Fallback to filename extraction if AI found nothing valid
       if (parsedPanelists.length === 0) {
         parsedPanelists = extractPanelistsFromFileNames(files);
       }
@@ -1024,8 +1033,12 @@ ${banner.html}
             }
           }
 
+          // Last resort: assign to next panelist without a headshot
           if (!matched) {
-            headshotMap.set(img.name, dataUrl);
+            const unmatched = parsedPanelists.find(p => !headshotMap.has(p.name));
+            if (unmatched) {
+              headshotMap.set(unmatched.name, dataUrl);
+            }
           }
         } catch {
           // skip failed downloads

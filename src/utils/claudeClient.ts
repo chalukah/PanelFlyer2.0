@@ -91,7 +91,7 @@ export async function testClaudeConnection(
 // --- Claude CLI (local subprocess via AI server) ---
 
 export async function sendToClaudeCLI(prompt: string, model?: string): Promise<string> {
-  const res = await fetch('http://localhost:3001/api/ai/generate', {
+  const res = await fetch('http://localhost:3002/api/ai/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt, model }),
@@ -102,7 +102,7 @@ export async function sendToClaudeCLI(prompt: string, model?: string): Promise<s
 
 export async function checkClaudeCLIStatus(): Promise<{ connected: boolean; bin?: string; error?: string }> {
   try {
-    const res = await fetch('http://localhost:3001/api/ai/status');
+    const res = await fetch('http://localhost:3002/api/ai/status');
     if (!res.ok) throw new Error('AI server not reachable');
     return await res.json();
   } catch {
