@@ -169,8 +169,10 @@ export async function listFolderContents(folderId: string): Promise<DriveFile[]>
 }
 
 export async function readGoogleDoc(docId: string): Promise<string> {
+  // Request with includeTabsContent=true to get ALL tabs (panelist tabs)
   const resp = await gapiRequest({
     path: `https://docs.googleapis.com/v1/documents/${docId}`,
+    params: { includeTabsContent: 'true' },
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -179,6 +181,7 @@ export async function readGoogleDoc(docId: string): Promise<string> {
 
   // Recursively extract text from all structural elements (paragraphs, tables, etc.)
   function extractFromElements(elements: any[]): void {
+    if (!elements) return;
     for (const block of elements) {
       // Regular paragraph
       if (block.paragraph) {
@@ -212,7 +215,33 @@ export async function readGoogleDoc(docId: string): Promise<string> {
     }
   }
 
-  extractFromElements(doc.body?.content ?? []);
+  // Extract content from ALL tabs (Google Docs tabs feature)
+  // Each tab has: tab.documentTab.body.content and optionally child tabs
+  function extractFromTab(tab: any): void {
+    const tabTitle = tab.tabProperties?.title;
+    if (tabTitle) {
+      text += `\n\n--- TAB: ${tabTitle} ---\n`;
+    }
+    const body = tab.documentTab?.body;
+    if (body?.content) {
+      extractFromElements(body.content);
+    }
+    // Recurse into child tabs
+    for (const child of tab.childTabs ?? []) {
+      extractFromTab(child);
+    }
+  }
+
+  if (doc.tabs && doc.tabs.length > 0) {
+    // New tabs-aware API response — read ALL tabs
+    for (const tab of doc.tabs) {
+      extractFromTab(tab);
+    }
+  } else {
+    // Fallback: legacy response without tabs (or single-tab doc)
+    extractFromElements(doc.body?.content ?? []);
+  }
+
   return text;
 }
 

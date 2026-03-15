@@ -24,6 +24,7 @@ export type ParsedFolder = {
   slidesDeckId: string | null;
   bannersFolderId: string | null;
   logosFolderId: string | null;
+  qrCodesFolderId: string | null;
   folderName: string;
 };
 
@@ -53,6 +54,7 @@ export function parseEventFolder(files: DriveFile[], folderName: string): Parsed
   let slidesDeckId: string | null = null;
   let bannersFolderId: string | null = null;
   let logosFolderId: string | null = null;
+  let qrCodesFolderId: string | null = null;
   const promoDocIds: string[] = [];
   const promoDocNames: string[] = [];
 
@@ -93,9 +95,14 @@ export function parseEventFolder(files: DriveFile[], folderName: string): Parsed
     if (f.mimeType === folderMime && lower.includes('logo')) {
       logosFolderId = f.id;
     }
+
+    // QR Codes folder
+    if (f.mimeType === folderMime && (lower.includes('qr') || lower.includes('q.r') || lower.includes('qr code'))) {
+      qrCodesFolderId = f.id;
+    }
   }
 
-  return { partnerDetailsDocId, headhotsFolderId, promoDocIds, promoDocNames, slidesDeckId, bannersFolderId, logosFolderId, folderName };
+  return { partnerDetailsDocId, headhotsFolderId, promoDocIds, promoDocNames, slidesDeckId, bannersFolderId, logosFolderId, qrCodesFolderId, folderName };
 }
 
 // ---------- AI-powered panelist extraction ----------
@@ -123,11 +130,13 @@ export async function extractPanelistsWithAI(
 
   const allNameHints = [...new Set([...promoNames, ...shortLinkNames, ...registrationNames])];
 
-  const prompt = `You are extracting panelist information from event documents for a veterinary/dental/law panel.
+  const prompt = `You are extracting panelist information from event documents for a professional expert panel.
 
 Here are panelist names found in the folder's file names: ${allNameHints.length > 0 ? allNameHints.join(', ') : 'none found'}
 
-Here is the document content (may include Partner Details, Promotional Materials, and bios):
+Here is the document content (may include Partner Details with separate tabs per panelist, Promotional Materials, and bios).
+The content may contain "--- TAB: <name> ---" markers indicating separate Google Doc tabs — each tab typically contains one panelist's details.
+
 ---
 ${docContent}
 ---
@@ -135,19 +144,20 @@ ${docContent}
 Extract ALL panelists mentioned. For each panelist, you MUST find:
 - name: Full name with "Dr." prefix if they are a doctor, AND include credentials after name (e.g. "Dr. Dani McVety, DVM")
 - firstName: First name only (without Dr.)
-- title: Their job title / role / position (e.g. "Founder & CEO", "Practice Owner", "Hospital Director", "Veterinarian"). This is NOT their credentials — this is what they DO.
-- org: Organization / company / practice / hospital name they work at (e.g. "Ready Vet Go", "Smith Animal Hospital")
+- title: Their job title / role / position (e.g. "Founder & CEO", "Practice Owner", "Hospital Director", "Consultant, Coach, Educator", "Chief Strategy Officer"). This is NOT their credentials — this is what they DO.
+- org: Organization / company / practice / hospital / firm name they work at (e.g. "Ready Vet Go", "Smith Animal Hospital", "Keal Consulting", "ClearDent Group")
 - email: Email address if found
 - phone: Phone number if found
 
 CRITICAL RULES:
-1. You MUST extract title AND org for every panelist. Look EVERYWHERE in the document — Partner Details sections, promotional materials, bios, tables, bullet points, paragraphs, labeled fields.
-2. The "title" field should be their ROLE (e.g. "Founder & CEO", "Practice Owner", "Medical Director") — NOT their degree credentials.
-3. The "org" field should be the NAME of their business/practice/hospital/company.
-4. Include credentials like DVM, MBA, DACVIM etc. in the "name" field after their name (e.g. "Dr. John Smith, DVM, DACVIM").
-5. Information may be spread across multiple sections of the document. Cross-reference Partner Details with Promotional Materials to get complete data.
-6. Common patterns: "Title: ...", "Organization: ...", "Practice: ...", "Hospital: ...", or just mentioned in a bio paragraph like "She is the founder of XYZ Hospital".
+1. You MUST extract title AND org for every panelist. Look EVERYWHERE — tabs, tables, bullet points, paragraphs, bios, labeled fields. NEVER leave title or org empty if the info exists anywhere in the document.
+2. The "title" field should be their ROLE (e.g. "Founder & CEO", "Practice Owner", "Medical Director", "Financial Consultant") — NOT their degree credentials.
+3. The "org" field should be the NAME of their business/practice/hospital/company/firm.
+4. Include credentials like DVM, MBA, DACVIM, JD, CPA, LE, DDS etc. in the "name" field after their name (e.g. "Dr. John Smith, DVM, DACVIM").
+5. Information may be spread across MULTIPLE TABS and sections of the document. Cross-reference all tabs, Partner Details, and Promotional Materials to get complete data.
+6. Common patterns: "Title: ...", "Organization: ...", "Practice: ...", "Hospital: ...", "Company: ...", "Firm: ...", or just mentioned in a bio paragraph like "She is the founder of XYZ Hospital" or "CEO at ABC Corp".
 7. If the document has table data separated by "|", each column may represent different fields (name, title, org, email, etc.).
+8. Each "--- TAB: <name> ---" section usually contains that panelist's full details including their title and organization. Read each tab carefully.
 
 Respond ONLY with a JSON array, no other text. Example:
 [{"name":"Dr. John Smith, DVM","firstName":"John","title":"Founder & CEO","org":"Smith Animal Hospital","email":"john@example.com","phone":"555-1234"}]
@@ -211,6 +221,20 @@ export function extractPanelistsFromDoc(docContent: string): ParsedPanelist[] {
     // Strip emoji prefixes for matching
     const cleanLine = line.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}]/gu, '').trim();
 
+    // Detect tab marker — "--- TAB: Name ---" indicates a new panelist section
+    const tabMatch = cleanLine.match(/^-{2,}\s*TAB:\s*(.+?)\s*-{2,}$/);
+    if (tabMatch) {
+      if (current?.name) panelists.push(finalizePanelist(current));
+      const tabName = tabMatch[1].trim();
+      // Tab name is often the panelist's name
+      if (tabName.length > 2 && !/^(overview|summary|template|instructions|details|partner)/i.test(tabName)) {
+        current = { name: tabName, firstName: tabName.replace(/^Dr\.?\s*/i, '').split(' ')[0] };
+      } else {
+        current = null;
+      }
+      continue;
+    }
+
     // Detect panelist name — 2-4 capitalized words, allow hyphens (e.g. Moore-Jones)
     const nameMatch = cleanLine.match(/^([A-Z][a-zA-Z'-]+(?:\s+[A-Z][a-zA-Z'-]+){1,3})$/);
     if (nameMatch && !cleanLine.includes(':') && !cleanLine.includes('@') && cleanLine.length < 50) {
@@ -242,7 +266,7 @@ export function extractPanelistsFromDoc(docContent: string): ParsedPanelist[] {
     if (titleMatch) { current.title = titleMatch[1].trim(); continue; }
 
     // Organization / Company
-    const orgMatch = cleanLine.match(/^(?:company|organization|org|institution|practice|hospital|clinic|business)\s*[:\-]\s*(.+)/i);
+    const orgMatch = cleanLine.match(/^(?:company|organization|org|institution|practice|hospital|clinic|business|firm|group|agency)\s*[:\-]\s*(.+)/i);
     if (orgMatch) { current.org = orgMatch[1].trim(); continue; }
 
     // Email
@@ -463,6 +487,18 @@ export function extractEventDetails(docContent: string, folderName: string): Par
   }
 
   // Keep date and time as separate fields — templates render them independently
+
+  // Clean topic: strip emojis, "Preheader" artifacts, and CTA filler
+  panelTopic = panelTopic
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{2702}-\u{27B0}]/gu, '')
+    .replace(/\s*preheader\s*/gi, '')
+    // Remove CTA after dashes: "– Join Our Panel", "– Save Your Seat"
+    .replace(/\s*[–—-]+\s*(?:Join (?:Our|Us|the)|Save Your|Register Now|Sign Up|Don't Miss|RSVP|Reserve Your)[\s\S]*$/i, '')
+    // Remove trailing CTA-only sentences
+    .replace(/\.\s*(?:Free live|Join us|Save your seat|Register now|Sign up|Don't miss|RSVP|Limited spots|Click here|Learn more at)[\s\S]*$/i, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*[.,:;]+\s*$/, '')
+    .trim();
 
   return { eventDate, eventTime, panelTopic, panelName, zoomRegistrationUrl, websiteUrl };
 }

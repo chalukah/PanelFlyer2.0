@@ -25,6 +25,8 @@ import {
   Zap,
   QrCode,
   Upload,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import {
   generateBannersForPanelist,
@@ -53,6 +55,7 @@ import {
   extractPanelistsFromFileNames,
   extractEventDetails,
 } from '../utils/folderParser';
+import { checkGogStatus, gogListFolder, gogExportDoc, gogDownloadFile, gogExtractFolder } from '../utils/gogClient';
 import html2canvas from 'html2canvas';
 import JSZip from 'jszip';
 import { sendToClaudeAI, testClaudeConnection, sendToClaudeCLI, checkClaudeCLIStatus } from '../utils/claudeClient';
@@ -118,6 +121,9 @@ type PanelistCount = 2 | 3 | 4;
 const PINK = '#FF90E8';
 const PINK_LIGHT = '#FFF0FB';
 const CREAM = '#F4F4F0';
+const DARK_BG = '#0f0f0f';
+const DARK_SURFACE = '#1a1a1a';
+const DARK_BORDER = '#333333';
 const WARM_BORDER = '#000000';
 
 // ============================================================
@@ -442,8 +448,30 @@ function BannerModal({
 // ============================================================
 
 export default function FlyerApp() {
+  // Dark mode
+  const [darkMode, setDarkMode] = useState(() => {
+    try { return localStorage.getItem('panel_dark_mode') === 'true'; } catch { return false; }
+  });
+  const toggleDarkMode = () => {
+    setDarkMode(prev => {
+      const next = !prev;
+      try { localStorage.setItem('panel_dark_mode', String(next)); } catch {}
+      return next;
+    });
+  };
+
+  // Theme-aware colors
+  const bg = darkMode ? DARK_BG : CREAM;
+  const surface = darkMode ? DARK_SURFACE : '#ffffff';
+  const border = darkMode ? DARK_BORDER : '#000000';
+  const textPrimary = darkMode ? '#f0f0f0' : '#000000';
+  const textSecondary = darkMode ? '#999999' : '#6B7280';
+  const inputBg = darkMode ? '#252525' : '#ffffff';
+  const inputBorder = darkMode ? '#444444' : '#000000';
+
   // Vertical selection
   const [selectedVertical, setSelectedVertical] = useState<VerticalId>('vet');
+  const [userPickedVertical, setUserPickedVertical] = useState(false); // tracks if user manually chose a vertical
   const verticalConfig = getVerticalConfig(selectedVertical);
 
   // Panelist count
@@ -454,6 +482,7 @@ export default function FlyerApp() {
   const [selectedTheme, setSelectedTheme] = useState<BannerTheme>(BANNER_THEMES[0]);
   const [panelName, setPanelName] = useState(verticalConfig.panelNameDefault);
   const [panelTopic, setPanelTopic] = useState('');
+  const [panelSubtitle, setPanelSubtitle] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState('8:00 PM EST');
   const [websiteUrl, setWebsiteUrl] = useState(verticalConfig.websiteUrl);
@@ -487,7 +516,7 @@ export default function FlyerApp() {
 
   // UI toggles
   const [showManualEntry, setShowManualEntry] = useState(false);
-  const [showEditOverrides, setShowEditOverrides] = useState(true);
+  const [showEditOverrides, setShowEditOverrides] = useState(false);
 
   // Generation progress
   const [generating, setGenerating] = useState(false);
@@ -537,8 +566,9 @@ export default function FlyerApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle vertical change
-  const handleVerticalChange = (id: VerticalId) => {
+  // Handle vertical change (called by user click or auto-detect)
+  const handleVerticalChange = (id: VerticalId, isUserAction = false) => {
+    if (isUserAction) setUserPickedVertical(true);
     setSelectedVertical(id);
     const config = getVerticalConfig(id);
     setHeaderText(`${config.name} Expert Panel`);
@@ -609,6 +639,7 @@ export default function FlyerApp() {
         headerText,
         panelName,
         panelTopic,
+        panelSubtitle,
         eventDate,
         eventTime,
         websiteUrl,
@@ -639,7 +670,7 @@ export default function FlyerApp() {
         if (i === allBanners.length - 1) setGenerating(false);
       }, 100 * i);
     });
-  }, [panelists, headerText, panelName, panelTopic, eventDate, eventTime, websiteUrl, verticalConfig, selectedTheme]);
+  }, [panelists, headerText, panelName, panelTopic, panelSubtitle, eventDate, eventTime, websiteUrl, verticalConfig, selectedTheme]);
 
   // Track last-generated state to avoid unnecessary regeneration on blur
   const lastGenSnapshot = useRef('');
@@ -891,9 +922,49 @@ ${banner.html}
     setSelectedBannerIds(new Set());
 
     try {
+      // Check if server-side gog CLI is available (better for folder name parsing)
+      const useGog = await checkGogStatus();
+
+      // === GOG: get folder name for topic/subtitle extraction ===
+      let gogTopicData: { panelName?: string; panelTopic?: string; panelSubtitle?: string; eventDate?: string; eventTime?: string; websiteUrl?: string; headerText?: string; zoomRegistrationUrl?: string } = {};
+      if (useGog) {
+        try {
+          setDriveStep('Reading folder metadata via gog + AI...');
+          const result = await gogExtractFolder(folderId);
+          console.log('[gog extract result]', JSON.stringify({
+            panelTopic: result.panelTopic,
+            panelSubtitle: result.panelSubtitle,
+            panelName: result.panelName,
+            panelists: result.panelists?.map(p => ({ name: p.name, title: p.title, org: p.org })),
+          }, null, 2));
+          if (result.success) {
+            gogTopicData = {
+              panelName: result.panelName,
+              panelTopic: result.panelTopic,
+              panelSubtitle: result.panelSubtitle,
+              eventDate: result.eventDate,
+              eventTime: result.eventTime,
+              websiteUrl: result.websiteUrl,
+              headerText: result.headerText,
+              zoomRegistrationUrl: result.zoomRegistrationUrl,
+            };
+          }
+        } catch (gogErr) {
+          console.warn('gog extraction failed, continuing with legacy flow:', gogErr);
+        }
+      }
+
+      // === MAIN FLOW: browser-side Google API (reads doc tabs for panelist title/org) ===
+
       // Step 1: Read folder
-      setDriveStep('Reading folder...');
-      const files = await listFolderContents(folderId);
+      setDriveStep(useGog ? 'Reading folder (via gog)...' : 'Reading folder...');
+      let files: DriveFile[];
+      if (useGog) {
+        const gogFiles = await gogListFolder(folderId);
+        files = gogFiles.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, parents: f.parents }));
+      } else {
+        files = await listFolderContents(folderId);
+      }
 
       let folderName = folderId;
       try {
@@ -911,9 +982,18 @@ ${banner.html}
 
       // Step 2: Read Partner Details doc + Promotional Materials docs
       let docText = '';
+
+      // Helper: read a Google Doc (tries gog first for better tab support)
+      const readDoc = async (docId: string): Promise<string> => {
+        if (useGog) {
+          try { return await gogExportDoc(docId); } catch { /* fall through */ }
+        }
+        return readGoogleDoc(docId);
+      };
+
       if (parsed.partnerDetailsDocId) {
-        setDriveStep('Reading Partner Details doc...');
-        docText = await readGoogleDoc(parsed.partnerDetailsDocId);
+        setDriveStep(useGog ? 'Reading Partner Details (via gog)...' : 'Reading Partner Details doc...');
+        docText = await readDoc(parsed.partnerDetailsDocId);
       }
 
       // Also read promotional materials docs — they often contain bios with titles/credentials/orgs
@@ -921,7 +1001,7 @@ ${banner.html}
         setDriveStep('Reading Promotional Materials...');
         for (const promoId of parsed.promoDocIds) {
           try {
-            const promoText = await readGoogleDoc(promoId);
+            const promoText = await readDoc(promoId);
             if (promoText.trim()) {
               docText += '\n\n--- PROMOTIONAL MATERIALS ---\n' + promoText;
             }
@@ -962,20 +1042,33 @@ ${banner.html}
       else if (/dominate\s*law|law|attorney|legal|counsel|barrister|solicitor|esquire/i.test(allText)) detectedVertical = 'dominate-law';
       else if (/vet|veterinar|dvm|animal\s*hospital|animal\s*clinic|pet\s*care/i.test(allText)) detectedVertical = 'vet';
 
-      if (detectedVertical && detectedVertical !== selectedVertical) {
-        setSelectedVertical(detectedVertical);
-        const newConfig = getVerticalConfig(detectedVertical);
-        setHeaderText(`${newConfig.name} Expert Panel`);
-        setWebsiteUrl(newConfig.websiteUrl);
+      // Only auto-switch vertical if user hasn't manually selected one
+      if (detectedVertical && detectedVertical !== selectedVertical && !userPickedVertical) {
+        handleVerticalChange(detectedVertical);
+        // Re-apply gog data that handleVerticalChange may have overwritten
+        if (gogTopicData.panelName) setPanelName(gogTopicData.panelName);
+        if (gogTopicData.websiteUrl) setWebsiteUrl(gogTopicData.websiteUrl);
+        if (gogTopicData.headerText) setHeaderText(gogTopicData.headerText);
       }
 
       // Step 4: Download headshots — check headshots folder, then root images
       const headshotMap = new Map<string, string>();
       let imageFiles: DriveFile[] = [];
 
+      // Helper: list subfolder contents (tries gog first)
+      const listSubfolder = async (id: string): Promise<DriveFile[]> => {
+        if (useGog) {
+          try {
+            const gogFiles = await gogListFolder(id);
+            return gogFiles.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, parents: f.parents }));
+          } catch { /* fall through */ }
+        }
+        return listFolderContents(id);
+      };
+
       if (parsed.headhotsFolderId) {
         setDriveStep('Downloading headshots...');
-        const headshotFiles = await listFolderContents(parsed.headhotsFolderId);
+        const headshotFiles = await listSubfolder(parsed.headhotsFolderId);
         imageFiles = headshotFiles.filter((f) => f.mimeType.startsWith('image/'));
       }
 
@@ -988,7 +1081,7 @@ ${banner.html}
       // Also check subfolders that might contain headshots (e.g. date-named folders)
       if (imageFiles.length === 0 && parsed.bannersFolderId) {
         try {
-          const subFiles = await listFolderContents(parsed.bannersFolderId);
+          const subFiles = await listSubfolder(parsed.bannersFolderId);
           imageFiles = subFiles.filter((f) => f.mimeType.startsWith('image/'));
         } catch { /* skip */ }
       }
@@ -1007,9 +1100,20 @@ ${banner.html}
         return (p.firstName || '').replace(/^Dr\.?\s*/i, '').trim().toLowerCase();
       };
 
+      // Helper: download image as data URL (tries gog first)
+      const downloadImage = async (fileId: string): Promise<string> => {
+        if (useGog) {
+          try {
+            const result = await gogDownloadFile(fileId);
+            return result.dataUrl;
+          } catch { /* fall through */ }
+        }
+        return getFileAsDataUrl(fileId);
+      };
+
       for (const img of imageFiles) {
         try {
-          const dataUrl = await getFileAsDataUrl(img.id);
+          const dataUrl = await downloadImage(img.id);
           const imgNameLower = img.name.toLowerCase();
           let matched = false;
 
@@ -1059,26 +1163,100 @@ ${banner.html}
         }
       }
 
-      // Step 5: Auto-fill internal state
+      // Step 4b: Download QR codes from QR Codes folder
+      // Structure: QR Codes / <Panelist Name> / 1.png, 2.png, 3.png, 4.png, 5.png
+      const qrCodesMap = new Map<string, QrCodes>(); // panelist name -> QR codes
+
+      if (parsed.qrCodesFolderId) {
+        setDriveStep('Downloading QR codes...');
+        try {
+          // List panelist subfolders inside QR Codes folder
+          const qrSubfolders = await listSubfolder(parsed.qrCodesFolderId);
+          const qrFolders = qrSubfolders.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
+
+          for (const qrFolder of qrFolders) {
+            // Match folder name to panelist
+            const qrFolderLower = qrFolder.name.toLowerCase();
+            const matchedPanelist = parsedPanelists.find(p => {
+              const lastName = p.name.split(/[\s,]+/).filter(w => w.length > 2 && !/^(dr|dvm|dds|jd|md|phd|mba|cpa)$/i.test(w)).pop()?.toLowerCase() || '';
+              const firstName = (p.firstName || '').replace(/^Dr\.?\s*/i, '').toLowerCase();
+              return (lastName.length > 2 && qrFolderLower.includes(lastName)) ||
+                     (firstName.length > 2 && qrFolderLower.includes(firstName)) ||
+                     qrFolderLower === p.name.toLowerCase();
+            });
+
+            if (!matchedPanelist) continue;
+
+            // List QR images inside this panelist's folder
+            try {
+              const qrFiles = await listSubfolder(qrFolder.id);
+              const qrImages = qrFiles.filter(f => f.mimeType.startsWith('image/'));
+              const panelistQr: QrCodes = {};
+
+              for (const qrImg of qrImages) {
+                // Match the trailing number before extension: "...N1.png" → 1, "...N5.png" → 5
+                // Pattern: QR_https___go.veterinarybusinesinstitute.com_VETMar02DMLDN1.png
+                const trailingNum = qrImg.name.match(/(\d)(?:\.[^.]+)?$/);
+                const bMatch = qrImg.name.match(/B([1-5])/i);
+                const plainMatch = qrImg.name.match(/(?:^|[_\-\s])([1-5])(?:\.|[_\-\s]|$)/);
+                const num = trailingNum ? trailingNum[1] : bMatch ? bMatch[1] : plainMatch ? plainMatch[1] : null;
+
+                if (num && parseInt(num) >= 1 && parseInt(num) <= 5) {
+                  const bannerType = `B${num}` as keyof QrCodes;
+                  if (!panelistQr[bannerType]) {
+                    try {
+                      const dataUrl = await downloadImage(qrImg.id);
+                      panelistQr[bannerType] = dataUrl;
+                    } catch { /* skip */ }
+                  }
+                }
+              }
+
+              // Fallback: if no numbers detected, assign sequentially by sorted filename
+              if (Object.keys(panelistQr).length === 0 && qrImages.length >= 5) {
+                const sorted = [...qrImages].sort((a, b) => a.name.localeCompare(b.name));
+                for (let i = 0; i < Math.min(sorted.length, 5); i++) {
+                  const bannerType = `B${i + 1}` as keyof QrCodes;
+                  try {
+                    const dataUrl = await downloadImage(sorted[i].id);
+                    panelistQr[bannerType] = dataUrl;
+                  } catch { /* skip */ }
+                }
+              }
+
+              if (Object.keys(panelistQr).length > 0) {
+                qrCodesMap.set(matchedPanelist.name, panelistQr);
+              }
+            } catch { /* skip unreadable QR subfolder */ }
+          }
+        } catch {
+          // QR codes folder not readable, skip
+        }
+      }
+
+      // Step 5: Auto-fill internal state — gog data takes priority over legacy regex
       setDriveStep('Auto-filling data...');
 
-      if (eventDetails.panelName && eventDetails.panelName !== folderId) {
-        setPanelName(eventDetails.panelName);
-      }
-      if (eventDetails.panelTopic) setPanelTopic(eventDetails.panelTopic);
-      if (eventDetails.eventDate) setEventDate(eventDetails.eventDate);
-      if (eventDetails.eventTime) setEventTime(eventDetails.eventTime);
-      if (eventDetails.websiteUrl) setWebsiteUrl(eventDetails.websiteUrl);
+      // Panel name: gog (from folder name) > legacy regex
+      const finalPanelName = gogTopicData.panelName || (eventDetails.panelName && eventDetails.panelName !== folderId ? eventDetails.panelName : '');
+      if (finalPanelName) setPanelName(finalPanelName);
 
-      // Build panelist form data
-      const zoomUrl = eventDetails.zoomRegistrationUrl || '';
-      const qrCodes: QrCodes = zoomUrl ? {
-        B1: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(zoomUrl)}`,
-        B2: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(zoomUrl)}`,
-        B3: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(zoomUrl)}`,
-        B4: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(zoomUrl)}`,
-        B5: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(zoomUrl)}`,
-      } : {};
+      // Topic & subtitle: gog (from folder name parsing) > legacy regex
+      const finalTopic = gogTopicData.panelTopic || eventDetails.panelTopic || '';
+      if (finalTopic) setPanelTopic(finalTopic);
+      if (gogTopicData.panelSubtitle) setPanelSubtitle(gogTopicData.panelSubtitle);
+
+      // Other fields: gog > legacy
+      const finalDate = gogTopicData.eventDate || eventDetails.eventDate || '';
+      const finalTime = gogTopicData.eventTime || eventDetails.eventTime || '';
+      const finalWebsite = gogTopicData.websiteUrl || eventDetails.websiteUrl || '';
+      if (finalDate) setEventDate(finalDate);
+      if (finalTime) setEventTime(finalTime);
+      if (finalWebsite) setWebsiteUrl(finalWebsite);
+      if (gogTopicData.headerText) setHeaderText(gogTopicData.headerText);
+
+      // Build panelist form data — QR codes from Drive folder, or empty
+      const zoomUrl = gogTopicData.zoomRegistrationUrl || eventDetails.zoomRegistrationUrl || '';
 
       let newPanelists: PanelistFormData[] = parsedPanelists.map((p) => ({
         id: crypto.randomUUID(),
@@ -1088,7 +1266,7 @@ ${banner.html}
         org: p.org,
         headshotUrl: headshotMap.get(p.name) || '',
         zoomUrl: zoomUrl,
-        qrCodes: qrCodes,
+        qrCodes: qrCodesMap.get(p.name) || {},
       }));
 
       // If no panelists were extracted from the doc, assign unmatched headshots
@@ -1214,7 +1392,9 @@ ${banner.html}
   };
 
   // Input class helper
-  const inputClass = "w-full px-3 py-2.5 rounded-lg border-[2px] border-black bg-white text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:border-black focus:ring-1 focus:ring-black transition-all";
+  const inputClass = `w-full px-3 py-2.5 rounded-lg border-[2px] text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 transition-all`;
+  const inputStyle: React.CSSProperties = { backgroundColor: inputBg, borderColor: inputBorder, color: textPrimary };
+  const cardStyle: React.CSSProperties = { backgroundColor: surface, borderColor: border };
 
   // Organize filtered banners by panelist for the grid
   const bannersByPanelist = new Map<string, GeneratedBanner[]>();
@@ -1225,19 +1405,28 @@ ${banner.html}
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: CREAM }}>
+    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark' : ''}`} style={{ backgroundColor: bg, color: textPrimary }}>
       {/* ===== TOP BAR ===== */}
-      <header className="sticky top-0 z-50 bg-white" style={{ borderBottom: `2px solid ${WARM_BORDER}` }}>
+      <header className="sticky top-0 z-50 transition-colors duration-300" style={{ backgroundColor: surface, borderBottom: `2px solid ${border}` }}>
         <div className="max-w-[1600px] mx-auto px-8 py-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div>
-              <h1 className="text-3xl font-black tracking-tight text-black">
+              <h1 className="text-3xl font-black tracking-tight" style={{ color: textPrimary }}>
                 Panel Flyer Studio
               </h1>
-              <p className="text-xs text-gray-400 mt-1">Paste a Drive URL, get banners</p>
+              <p className="text-xs mt-1" style={{ color: textSecondary }}>Paste a Drive URL, get banners</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Dark mode toggle */}
+            <button
+              onClick={toggleDarkMode}
+              className="p-2 rounded-full transition-all hover:scale-105"
+              style={{ background: darkMode ? '#333' : '#f0f0f0', color: darkMode ? '#fbbf24' : '#666' }}
+              title={darkMode ? 'Light mode' : 'Dark mode'}
+            >
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
             {/* Claude AI connection button */}
             <button
               onClick={() => setShowSettings(true)}
@@ -1277,7 +1466,7 @@ ${banner.html}
                 return (
                   <button
                     key={v.id}
-                    onClick={() => handleVerticalChange(v.id)}
+                    onClick={() => handleVerticalChange(v.id, true)}
                     className={`relative group flex flex-col items-center gap-2 px-4 py-5 rounded-2xl border-[2px] transition-all duration-200 ${
                       isSelected
                         ? 'scale-[1.02] shadow-sm'
@@ -1435,8 +1624,12 @@ ${banner.html}
                   <input value={panelName} onChange={(e) => setPanelName(e.target.value)} className={inputClass} />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Panel Topic</label>
-                  <input value={panelTopic} onChange={(e) => setPanelTopic(e.target.value)} placeholder="e.g. Building a Thriving Practice" className={inputClass} />
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Panel Topic (Main Title)</label>
+                  <input value={panelTopic} onChange={(e) => setPanelTopic(e.target.value)} placeholder="e.g. Leading Through Change" className={inputClass} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Subtitle (shown in gradient card on B1)</label>
+                  <input value={panelSubtitle} onChange={(e) => setPanelSubtitle(e.target.value)} placeholder="e.g. Practical Leadership for a Post-Pandemic Veterinary World" className={inputClass} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1833,50 +2026,13 @@ ${banner.html}
                                 <div className="text-[11px] font-semibold text-black truncate max-w-[80px]">{panelistName}</div>
                               </div>
                             </div>
-                            {/* QR Upload Button */}
-                            <label
-                              className="flex items-center gap-1 text-[9px] font-semibold px-2 py-1 rounded-full cursor-pointer transition-all hover:opacity-80"
-                              style={{ background: panelist?.qrCodes && Object.keys(panelist.qrCodes).length > 0 ? '#d4edda' : '#f0f0f0', color: panelist?.qrCodes && Object.keys(panelist.qrCodes).length > 0 ? '#155724' : '#666' }}
-                            >
-                              <QrCode className="w-3 h-3" />
-                              {panelist?.qrCodes && Object.values(panelist.qrCodes).filter(Boolean).length > 0
-                                ? `QR ${Object.values(panelist.qrCodes).filter(Boolean).length}/5`
-                                : 'Upload QR'
-                              }
-                              <input
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                className="hidden"
-                                onChange={(e) => {
-                                  if (!e.target.files || panelistIdx === -1) return;
-                                  const files = Array.from(e.target.files);
-                                  const currentQr = { ...panelist?.qrCodes } as QrCodes;
-
-                                  let processed = 0;
-                                  const total = files.length;
-
-                                  files.forEach((file) => {
-                                    // Map filename to banner type: 1->B1, 2->B2, etc.
-                                    const nameMatch = file.name.match(/^([1-5])/);
-                                    if (!nameMatch) return;
-                                    const bannerType = `B${nameMatch[1]}` as keyof QrCodes;
-
-                                    const reader = new FileReader();
-                                    reader.onload = () => {
-                                      currentQr[bannerType] = reader.result as string;
-                                      processed++;
-                                      if (processed >= total) {
-                                        updatePanelist(panelistIdx, { ...panelists[panelistIdx], qrCodes: { ...currentQr } });
-                                        setTimeout(() => generateAllBanners(), 100);
-                                      }
-                                    };
-                                    reader.readAsDataURL(file);
-                                  });
-                                  e.target.value = '';
-                                }}
-                              />
-                            </label>
+                            {/* QR status indicator */}
+                            {panelist?.qrCodes && Object.values(panelist.qrCodes).filter(Boolean).length > 0 && (
+                              <div className="flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#d4edda', color: '#155724' }}>
+                                <QrCode className="w-3 h-3" />
+                                QR {Object.values(panelist.qrCodes).filter(Boolean).length}/5
+                              </div>
+                            )}
                           </div>
 
                           {/* Banner thumbnails */}

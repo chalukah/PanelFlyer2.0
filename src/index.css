@@ -256,6 +256,74 @@ select {
   border-bottom: 1px solid #E5E7EB;
 }
 
+/* Dark mode */
+.dark {
+  color-scheme: dark;
+}
+.dark body,
+.dark html {
+  background-color: #0f0f0f;
+  color: #f0f0f0;
+}
+.dark .bg-white {
+  background-color: #1a1a1a !important;
+}
+.dark .bg-gray-50,
+.dark .bg-gray-100 {
+  background-color: #222 !important;
+}
+.dark .bg-\[\#F4F4F0\] {
+  background-color: #0f0f0f !important;
+}
+.dark .border-black {
+  border-color: #444 !important;
+}
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: #333 !important;
+}
+.dark .text-black {
+  color: #f0f0f0 !important;
+}
+.dark .text-gray-400,
+.dark .text-gray-500 {
+  color: #888 !important;
+}
+.dark .text-gray-600,
+.dark .text-gray-700 {
+  color: #aaa !important;
+}
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #252525 !important;
+  border-color: #444 !important;
+  color: #f0f0f0 !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #666 !important;
+}
+.dark .hover\:bg-gray-50:hover {
+  background-color: #2a2a2a !important;
+}
+.dark .hover\:bg-gray-100:hover {
+  background-color: #333 !important;
+}
+.dark ::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #444;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+.dark *:focus-visible {
+  outline-color: #FF90E8;
+}
+
 /* Hide scrollbar but keep scrollable */
 .scrollbar-hide {
   -ms-overflow-style: none;

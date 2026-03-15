@@ -1,4 +1,5 @@
 import { type VerticalConfig, getVerticalConfig } from './verticalConfig';
+import { TD_LOGO_DATA_URI, DL_LOGO_DATA_URI, BOA_LOGO_DATA_URI } from './logoData';
 
 // ——————————————————————————————————————————————
 // Types
@@ -324,6 +325,7 @@ export const BANNER_THEMES: BannerTheme[] = [
 export type BannerData = {
   panelName: string;
   panelTopic: string;
+  panelSubtitle?: string;
   eventDate: string;
   eventTime: string;
   websiteUrl: string;
@@ -358,6 +360,24 @@ export type GeneratedBanner = {
 // ——————————————————————————————————————————————
 // Helpers
 // ——————————————————————————————————————————————
+
+/** Strip emojis and promotional filler from topic text */
+function cleanTopic(topic: string): string {
+  return topic
+    // Remove emoji characters
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, '')
+    // Remove "Preheader" artifacts from email template data
+    .replace(/\s*preheader\s*/gi, '')
+    // Remove CTA phrases after dashes: "– Join Our Panel", "– Save Your Seat", "– Register Now"
+    .replace(/\s*[–—-]+\s*(?:Join (?:Our|Us|the)|Save Your|Register Now|Sign Up|Don't Miss|RSVP|Reserve Your)[\s\S]*$/i, '')
+    // Remove trailing CTA-only sentences (must match full marketing pattern, not topic content)
+    .replace(/\.\s*(?:Free live|Join us|Save your seat|Register now|Sign up|Don't miss|RSVP|Limited spots|Click here|Learn more at)[\s\S]*$/i, '')
+    // Clean up extra whitespace and trailing punctuation
+    .replace(/\s+/g, ' ')
+    .replace(/^\s*[.,:;–—-]+\s*/, '')
+    .replace(/\s*[.,:;]+\s*$/, '')
+    .trim();
+}
 
 /** Strip any appended time from eventDate (e.g. "WEDNESDAY, JANUARY 15, 2025 · 8:00 PM" → "WEDNESDAY, JANUARY 15, 2025") */
 function cleanDate(dateStr: string): string {
@@ -620,19 +640,42 @@ function getLogoSvg(data: BannerData, u: string, w = 180, h = 60): string {
   const vc = data.verticalConfig;
   // For vet (or no vertical), use the full-detail VBI logo
   if (!vc || vc.id === 'vet') return vbiLogoSvg(u, w, h);
-  // For Thriving Dentist, use its custom logo as-is (no gradient IDs to conflict)
-  if (vc.id === 'thriving-dentist') {
-    return vc.logoSvg
-      .replace(/width="\d+"/, `width="${w}"`)
-      .replace(/height="\d+"/, `height="${h}"`);
+
+  // For custom verticals, use the real brand logo images (base64 embedded)
+  const logoMap: Record<string, string> = {
+    'thriving-dentist': TD_LOGO_DATA_URI,
+    'dominate-law': DL_LOGO_DATA_URI,
+    'aesthetics': BOA_LOGO_DATA_URI,
+  };
+
+  const logoUri = logoMap[vc.id];
+  if (logoUri) {
+    return `<div style="background:rgba(255,255,255,0.92);border-radius:8px;padding:6px 12px;display:inline-block;">
+      <img src="${logoUri}" style="width:${w - 24}px;height:auto;max-height:${h - 12}px;object-fit:contain;display:block;" crossorigin="anonymous">
+    </div>`;
   }
-  // For other verticals, use verticalConfig.logoSvg with unique gradient ID patched in
-  // makeLogo uses id="g1_<abbr>" — replace with a unique ID to avoid SVG conflicts
+
+  // Fallback: generic logo from verticalConfig with unique gradient IDs
   return vc.logoSvg
     .replace(/id="g1_[a-z]+"/g, `id="g1_${u}"`)
     .replace(/url\(#g1_[a-z]+\)/g, `url(#g1_${u})`)
     .replace(/width="\d+"/, `width="${w}"`)
     .replace(/height="\d+"/, `height="${h}"`);
+}
+
+/** Returns the original (dark) brand logo for light backgrounds like B3 */
+function getLogoDark(data: BannerData, w = 180, h = 60): string {
+  const vc = data.verticalConfig;
+  const logoMap: Record<string, string> = {
+    'thriving-dentist': TD_LOGO_DATA_URI,
+    'dominate-law': DL_LOGO_DATA_URI,
+    'aesthetics': BOA_LOGO_DATA_URI,
+  };
+  const logoUri = logoMap[vc?.id || ''];
+  if (logoUri) {
+    return `<img src="${logoUri}" style="width:${w}px;height:auto;max-height:${h}px;object-fit:contain;" crossorigin="anonymous">`;
+  }
+  return '';
 }
 
 /** Returns the B1-style background watermark SVG based on vertical */
@@ -658,38 +701,35 @@ function getBgFlex(data: BannerData): string {
 // ——————————————————————————————————————————————
 
 function renderPanelistCard2P(p: { name: string; title: string; org: string; headshotUrl: string }, textColor: string, subtitleColor: string, theme: BannerTheme): string {
-  const titleLine = [p.title, p.org].filter(Boolean).join(' @\n');
-  const titleHtml = titleLine.replace(' @\n', ' @<br>');
   return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;">
     <div style="width:320px;height:320px;border-radius:50%;border:8px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);">
-      <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center top;">
+      <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
     </div>
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:26px;font-weight:800;color:${textColor};text-align:center;margin-top:14px;line-height:1.25;">${p.name}</div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:6px;line-height:1.4;">${titleHtml}</div>
+    ${p.title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:6px;line-height:1.3;">${p.title}</div>` : ''}
+    ${p.org ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:15px;font-weight:500;color:${subtitleColor};text-align:center;margin-top:2px;line-height:1.3;opacity:0.85;">${p.org}</div>` : ''}
   </div>`;
 }
 
 function renderPanelistCard3P(p: { name: string; title: string; org: string; headshotUrl: string }, textColor: string, subtitleColor: string, theme: BannerTheme): string {
-  const titleLine = [p.title, p.org].filter(Boolean).join(' @\n');
-  const titleHtml = titleLine.replace(' @\n', ' @<br>');
   return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;">
     <div style="width:270px;height:270px;border-radius:50%;border:8px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);">
-      <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center top;">
+      <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
     </div>
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:800;color:${textColor};text-align:center;margin-top:14px;line-height:1.25;">${p.name}</div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:15px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:6px;line-height:1.4;">${titleHtml}</div>
+    ${p.title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:15px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:6px;line-height:1.3;">${p.title}</div>` : ''}
+    ${p.org ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:13px;font-weight:500;color:${subtitleColor};text-align:center;margin-top:2px;line-height:1.3;opacity:0.85;">${p.org}</div>` : ''}
   </div>`;
 }
 
 function renderPanelistCard4P(p: { name: string; title: string; org: string; headshotUrl: string }, textColor: string, subtitleColor: string, theme: BannerTheme): string {
-  const titleLine = [p.title, p.org].filter(Boolean).join(' @\n');
-  const titleHtml = titleLine.replace(' @\n', ' @<br>');
   return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;">
     <div style="width:220px;height:220px;border-radius:50%;border:6px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);">
-      <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center top;">
+      <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
     </div>
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:20px;font-weight:800;color:${textColor};text-align:center;margin-top:12px;line-height:1.25;">${p.name}</div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:14px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:4px;line-height:1.3;">${titleHtml}</div>
+    ${p.title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:14px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:4px;line-height:1.3;">${p.title}</div>` : ''}
+    ${p.org ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:12px;font-weight:500;color:${subtitleColor};text-align:center;margin-top:2px;line-height:1.3;opacity:0.85;">${p.org}</div>` : ''}
   </div>`;
 }
 
@@ -701,7 +741,8 @@ function generateB1(data: BannerData): string {
   const u = uid();
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B1');
-  const titleLine = [data.panelistTitle, data.panelistOrg].filter(Boolean).join(' @ ');
+  const topic = cleanTopic(data.panelTopic);
+  const subtitle = data.panelSubtitle ? cleanTopic(data.panelSubtitle) : '';
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -734,15 +775,16 @@ function generateB1(data: BannerData): string {
       <div style="position:absolute;top:20px;right:32px;z-index:5;">${getLogoSvg(data, u, 165, 56)}</div>
 
       <div style="font-size:22px;font-weight:700;color:${t.lime};margin-bottom:14px;letter-spacing:0.5px;">${data.panelName}</div>
-      <div style="font-size:48px;font-weight:900;color:#ffffff;line-height:1.1;margin-bottom:28px;">${data.panelTopic.split(':')[0] || data.panelTopic}</div>
+      <div style="font-size:44px;font-weight:900;color:#ffffff;line-height:1.1;margin-bottom:20px;">${topic}</div>
 
-      <div style="background:${t.accentGradient};border-radius:20px;padding:28px 36px;max-width:480px;">
-        <div style="font-size:36px;font-weight:800;color:#ffffff;line-height:1.2;">${data.panelTopic.includes(':') ? data.panelTopic.split(':').slice(1).join(':').trim() : data.panelTopic}</div>
-      </div>
+      ${subtitle ? `<div style="background:${t.accentGradient};border-radius:20px;padding:24px 32px;max-width:480px;">
+        <div style="font-size:30px;font-weight:800;color:#ffffff;line-height:1.2;">${subtitle}</div>
+      </div>` : ''}
 
       <div style="margin-top:32px;">
         <div style="font-size:40px;font-weight:800;color:#ffffff;">${data.panelistName}</div>
-        ${titleLine ? `<div style="font-size:24px;font-weight:600;color:${t.subtitleColor};margin-top:8px;">${titleLine}</div>` : ''}
+        ${data.panelistTitle ? `<div style="font-size:24px;font-weight:600;color:${t.subtitleColor};margin-top:8px;">${data.panelistTitle}</div>` : ''}
+        ${data.panelistOrg ? `<div style="font-size:20px;font-weight:500;color:${t.subtitleColor};margin-top:4px;opacity:0.85;">${data.panelistOrg}</div>` : ''}
       </div>
     </div>
 
@@ -752,7 +794,7 @@ function generateB1(data: BannerData): string {
         <!-- Glow behind -->
         <div style="position:absolute;inset:-30px;border-radius:50%;background:radial-gradient(circle,${t.accent}73 0%,transparent 70%);"></div>
         <div style="width:380px;height:380px;border-radius:50%;border:8px solid ${t.accent};overflow:hidden;position:relative;box-shadow:0 0 0 6px ${t.neonBorder}b3,0 0 0 16px ${t.neonBorder}66,0 0 0 26px ${t.neonBorder}40,0 0 0 36px ${t.neonBorder}1f,0 0 60px ${t.neonBorder}66;">
-          <img src="${data.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center top;">
+          <img src="${data.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
         </div>
       </div>
     </div>
@@ -811,7 +853,7 @@ function generateB2(data: BannerData): string {
     <div style="position:absolute;top:20px;right:34px;z-index:5;">${getLogoSvg(data, u, 180, 60)}</div>
     <div style="max-width:700px;">
       <div style="font-family:Montserrat,Arial,sans-serif;font-size:24px;font-weight:700;color:${t.lime};margin-bottom:10px;">${data.panelName}</div>
-      <div style="font-family:Montserrat,Arial,sans-serif;font-size:40px;font-weight:900;color:#ffffff;line-height:1.15;">${data.panelTopic}</div>
+      <div style="font-family:Montserrat,Arial,sans-serif;font-size:40px;font-weight:900;color:#ffffff;line-height:1.15;">${cleanTopic(data.panelTopic)}${data.panelSubtitle ? ': ' + cleanTopic(data.panelSubtitle) : ''}</div>
     </div>
     <div style="display:flex;justify-content:center;gap:${gap};flex:1;align-items:center;margin-top:8px;">
       ${panelistsHtml}
@@ -863,7 +905,7 @@ function generateB3(data: BannerData): string {
       <span style="font-family:Montserrat,Arial,sans-serif;font-size:15px;font-weight:800;color:${t.headerTextColor};letter-spacing:1px;text-transform:uppercase;">${data.headerText}</span>
     </div>
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:700;color:${t.lime};margin-bottom:10px;">${data.panelName}</div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:36px;font-weight:900;color:#ffffff;line-height:1.2;max-width:800px;">${data.panelTopic}</div>
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:36px;font-weight:900;color:#ffffff;line-height:1.2;max-width:800px;">${cleanTopic(data.panelTopic)}${data.panelSubtitle ? ': ' + cleanTopic(data.panelSubtitle) : ''}</div>
   </div>
   <div style="flex:1;background:#ffffff;display:flex;align-items:center;justify-content:center;padding:18px 36px;">
     <div style="display:flex;justify-content:center;gap:${gap};width:100%;">${panelistsHtml}</div>
@@ -891,7 +933,6 @@ function generateB4(data: BannerData): string {
   const u = uid();
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B4');
-  const titleLine = [data.panelistTitle, data.panelistOrg].filter(Boolean).join(' @ ');
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -904,16 +945,17 @@ function generateB4(data: BannerData): string {
   <div style="background:${t.darkBg}66;padding:18px 40px;position:relative;flex-shrink:0;">
     <div style="position:absolute;top:14px;right:32px;">${getLogoSvg(data, u, 180, 60)}</div>
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:700;color:${t.lime};margin-bottom:8px;">${data.panelName}</div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:900;color:#ffffff;line-height:1.2;max-width:680px;">${data.panelTopic}</div>
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:900;color:#ffffff;line-height:1.2;max-width:680px;">${cleanTopic(data.panelTopic)}${data.panelSubtitle ? ': ' + cleanTopic(data.panelSubtitle) : ''}</div>
   </div>
   <div style="height:4px;background:linear-gradient(90deg,${t.separatorColor},${t.separatorColor}1a);flex-shrink:0;"></div>
   <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:30px 50px;gap:0;">
     <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:360px;">
       <div style="width:320px;height:320px;border-radius:50%;border:8px solid ${t.accent};overflow:hidden;box-shadow:0 0 0 4px ${t.neonBorder}40,0 16px 48px rgba(0,0,0,0.6);">
-        <img src="${data.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center top;">
+        <img src="${data.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
       </div>
       <div style="font-family:Montserrat,Arial,sans-serif;font-size:26px;font-weight:800;color:#ffffff;text-align:center;margin-top:20px;">${data.panelistName}</div>
-      ${titleLine ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:600;color:${t.lime};text-align:center;margin-top:8px;">${titleLine}</div>` : ''}
+      ${data.panelistTitle ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:600;color:${t.lime};text-align:center;margin-top:8px;">${data.panelistTitle}</div>` : ''}
+      ${data.panelistOrg ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:15px;font-weight:500;color:${t.lime};text-align:center;margin-top:4px;opacity:0.85;">${data.panelistOrg}</div>` : ''}
     </div>
     <div style="width:3px;height:320px;background:linear-gradient(180deg,transparent,${t.separatorColor},transparent);margin:0 40px;flex-shrink:0;"></div>
     <div style="display:flex;flex-direction:column;align-items:flex-start;flex-shrink:0;">
@@ -975,7 +1017,7 @@ function generateB5(data: BannerData): string {
       <div style="font-family:Montserrat,Arial,sans-serif;font-size:42px;font-weight:900;color:${t.lime};letter-spacing:1px;">HAPPENING TODAY!</div>
     </div>
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:20px;font-weight:700;color:#ffffff;">${data.panelName}</div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:600;color:rgba(255,255,255,0.7);max-width:680px;">${data.panelTopic}</div>
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:600;color:rgba(255,255,255,0.7);max-width:680px;">${cleanTopic(data.panelTopic)}${data.panelSubtitle ? ': ' + cleanTopic(data.panelSubtitle) : ''}</div>
   </div>
   <div style="height:4px;background:linear-gradient(90deg,${t.separatorColor},${t.separatorColor}1a);flex-shrink:0;"></div>
   <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px 40px;gap:${gap};">
