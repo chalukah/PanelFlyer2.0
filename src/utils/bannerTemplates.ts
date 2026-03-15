@@ -68,6 +68,69 @@ export const BANNER_THEMES: BannerTheme[] = [
     bgPattern: '',
   },
   {
+    id: 'thriving-dentist',
+    name: 'Thriving Dentist',
+    swatch: ['#1A7AED', '#0A4A9A'],
+    headerBg: '#CC0000',
+    headerTextColor: '#ffffff',
+    bgGradient: 'linear-gradient(160deg, #1A7AED 0%, #0E5BBD 35%, #0A4A9A 65%, #063570 100%)',
+    accent: '#106EEA',
+    lime: '#FFFFFF',
+    neonBorder: '#1E83D0',
+    darkBg: '#0A4A9A',
+    subtitleColor: 'rgba(255,255,255,0.85)',
+    subtitleColorLight: '#555555',
+    ctaBg: '#CC0000',
+    ctaText: '#ffffff',
+    accentGradient: 'linear-gradient(135deg, #106EEA, #0A4A9A)',
+    gridLineColor: 'rgba(16,110,234,0.04)',
+    separatorColor: '#1E83D0',
+    b3TextColor: '#121213',
+    bgPattern: '',
+  },
+  {
+    id: 'dominate-law',
+    name: 'Dominate Law',
+    swatch: ['#3D2B1A', '#C8A74E'],
+    headerBg: '#C8A74E',
+    headerTextColor: '#1F1508',
+    bgGradient: 'radial-gradient(ellipse at 68% 42%, #3D2B1A 0%, #2E200F 30%, #1F1508 60%, #110C04 100%)',
+    accent: '#C8A74E',
+    lime: '#C8A74E',
+    neonBorder: '#D4B95E',
+    darkBg: '#2E200F',
+    subtitleColor: '#E8D5A0',
+    subtitleColorLight: '#3D2B1A',
+    ctaBg: '#CC0000',
+    ctaText: '#ffffff',
+    accentGradient: 'linear-gradient(135deg, #C8A74E, #2E200F)',
+    gridLineColor: 'rgba(200,167,78,0.04)',
+    separatorColor: '#C8A74E',
+    b3TextColor: '#1F1508',
+    bgPattern: '',
+  },
+  {
+    id: 'business-aesthetics',
+    name: 'Business of Aesthetics',
+    swatch: ['#0D8A8E', '#064044'],
+    headerBg: '#0D7377',
+    headerTextColor: '#ffffff',
+    bgGradient: 'linear-gradient(160deg, #0D8A8E 0%, #0B7074 30%, #095A5E 60%, #064044 100%)',
+    accent: '#0D7377',
+    lime: '#FFFFFF',
+    neonBorder: '#15A0A5',
+    darkBg: '#095A5E',
+    subtitleColor: 'rgba(255,255,255,0.85)',
+    subtitleColorLight: '#555555',
+    ctaBg: '#CC0000',
+    ctaText: '#ffffff',
+    accentGradient: 'linear-gradient(135deg, #0D7377, #064044)',
+    gridLineColor: 'rgba(13,115,119,0.04)',
+    separatorColor: '#15A0A5',
+    b3TextColor: '#064044',
+    bgPattern: '',
+  },
+  {
     id: 'emerald-gold',
     name: 'Emerald Gold',
     swatch: ['#064e3b', '#f59e0b'],
@@ -466,60 +529,89 @@ const VET_BG_FLEX = `<div style="position:absolute;inset:0;z-index:2;pointer-eve
 // Per-vertical background SVG helpers
 // ——————————————————————————————————————————————
 
-/** Dental: tooth watermark icons */
-const DENTAL_BG_B1 = `<div style="position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;">
-  <svg width="1080" height="1080" viewBox="0 0 1080 1080" style="position:absolute;inset:0;">
-    <g transform="translate(80,250) rotate(-15)" opacity="0.1"><path d="M-12,10 Q-12,-18 0,-22 Q12,-26 20,-18 Q28,-26 40,-22 Q52,-18 52,10 Q52,30 40,34 Q32,36 26,28 Q20,22 14,28 Q8,36 0,34 Q-12,30 -12,10 Z" fill="white"/></g>
-    <g transform="translate(920,400) rotate(20)" opacity="0.06"><path d="M-12,10 Q-12,-18 0,-22 Q12,-26 20,-18 Q28,-26 40,-22 Q52,-18 52,10 Q52,30 40,34 Q32,36 26,28 Q20,22 14,28 Q8,36 0,34 Q-12,30 -12,10 Z" fill="white"/></g>
-    <g transform="translate(150,600) rotate(35) scale(0.7)" opacity="0.08"><path d="M-12,10 Q-12,-18 0,-22 Q12,-26 20,-18 Q28,-26 40,-22 Q52,-18 52,10 Q52,30 40,34 Q32,36 26,28 Q20,22 14,28 Q8,36 0,34 Q-12,30 -12,10 Z" fill="white"/></g>
-  </svg>
-</div>`;
-
-const DENTAL_BG_FLEX = `<div style="position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;">
-  <svg width="1080" height="1080" viewBox="0 0 1080 1080" style="position:absolute;inset:0;">
-    <g transform="translate(80,180) rotate(-15)" opacity="0.12"><path d="M-12,10 Q-12,-18 0,-22 Q12,-26 20,-18 Q28,-26 40,-22 Q52,-18 52,10 Q52,30 40,34 Q32,36 26,28 Q20,22 14,28 Q8,36 0,34 Q-12,30 -12,10 Z" fill="white"/></g>
-    <g transform="translate(920,320) rotate(20)" opacity="0.08"><path d="M-12,10 Q-12,-18 0,-22 Q12,-26 20,-18 Q28,-26 40,-22 Q52,-18 52,10 Q52,30 40,34 Q32,36 26,28 Q20,22 14,28 Q8,36 0,34 Q-12,30 -12,10 Z" fill="white"/></g>
-    <g transform="translate(500,800) rotate(-30) scale(0.9)" opacity="0.1"><path d="M-12,10 Q-12,-18 0,-22 Q12,-26 20,-18 Q28,-26 40,-22 Q52,-18 52,10 Q52,30 40,34 Q32,36 26,28 Q20,22 14,28 Q8,36 0,34 Q-12,30 -12,10 Z" fill="white"/></g>
-    <g transform="translate(850,700) rotate(-25)" opacity="0.08"><path d="M-12,10 Q-12,-18 0,-22 Q12,-26 20,-18 Q28,-26 40,-22 Q52,-18 52,10 Q52,30 40,34 Q32,36 26,28 Q20,22 14,28 Q8,36 0,34 Q-12,30 -12,10 Z" fill="white"/></g>
-    <g transform="translate(150,550) rotate(35) scale(0.7)" opacity="0.08"><path d="M-12,10 Q-12,-18 0,-22 Q12,-26 20,-18 Q28,-26 40,-22 Q52,-18 52,10 Q52,30 40,34 Q32,36 26,28 Q20,22 14,28 Q8,36 0,34 Q-12,30 -12,10 Z" fill="white"/></g>
-  </svg>
-</div>`;
-
-/** Law: scales of justice watermark icons */
+/** Dominate Law: gavel watermark icons */
 const LAW_BG_B1 = `<div style="position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;">
   <svg width="1080" height="1080" viewBox="0 0 1080 1080" style="position:absolute;inset:0;">
-    <g transform="translate(80,250) rotate(-15)" opacity="0.1"><line x1="0" y1="-30" x2="0" y2="30" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="28" y2="-20" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="-38" y2="0" stroke="white" stroke-width="2"/><line x1="-38" y1="0" x2="-18" y2="0" stroke="white" stroke-width="2"/><line x1="28" y1="-20" x2="38" y2="0" stroke="white" stroke-width="2"/><line x1="38" y1="0" x2="18" y2="0" stroke="white" stroke-width="2"/><line x1="-10" y1="30" x2="10" y2="30" stroke="white" stroke-width="3"/></g>
-    <g transform="translate(920,400) rotate(20)" opacity="0.06"><line x1="0" y1="-30" x2="0" y2="30" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="28" y2="-20" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="-38" y2="0" stroke="white" stroke-width="2"/><line x1="-38" y1="0" x2="-18" y2="0" stroke="white" stroke-width="2"/><line x1="28" y1="-20" x2="38" y2="0" stroke="white" stroke-width="2"/><line x1="38" y1="0" x2="18" y2="0" stroke="white" stroke-width="2"/><line x1="-10" y1="30" x2="10" y2="30" stroke="white" stroke-width="3"/></g>
-    <g transform="translate(150,600) rotate(35) scale(0.7)" opacity="0.08"><line x1="0" y1="-30" x2="0" y2="30" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="28" y2="-20" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="-38" y2="0" stroke="white" stroke-width="2"/><line x1="-38" y1="0" x2="-18" y2="0" stroke="white" stroke-width="2"/><line x1="28" y1="-20" x2="38" y2="0" stroke="white" stroke-width="2"/><line x1="38" y1="0" x2="18" y2="0" stroke="white" stroke-width="2"/><line x1="-10" y1="30" x2="10" y2="30" stroke="white" stroke-width="3"/></g>
+    <g transform="translate(80,250) rotate(-15)" opacity="0.08"><rect x="-20" y="-8" width="40" height="16" rx="4" fill="#C8A74E"/><rect x="-6" y="8" width="12" height="30" rx="3" fill="#C8A74E"/><rect x="-22" y="38" width="44" height="8" rx="2" fill="#C8A74E"/></g>
+    <g transform="translate(920,400) rotate(20)" opacity="0.06"><rect x="-20" y="-8" width="40" height="16" rx="4" fill="#C8A74E"/><rect x="-6" y="8" width="12" height="30" rx="3" fill="#C8A74E"/><rect x="-22" y="38" width="44" height="8" rx="2" fill="#C8A74E"/></g>
+    <g transform="translate(150,600) rotate(35) scale(0.7)" opacity="0.07"><rect x="-20" y="-8" width="40" height="16" rx="4" fill="#C8A74E"/><rect x="-6" y="8" width="12" height="30" rx="3" fill="#C8A74E"/><rect x="-22" y="38" width="44" height="8" rx="2" fill="#C8A74E"/></g>
   </svg>
 </div>`;
 
 const LAW_BG_FLEX = `<div style="position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;">
   <svg width="1080" height="1080" viewBox="0 0 1080 1080" style="position:absolute;inset:0;">
-    <g transform="translate(80,180) rotate(-15)" opacity="0.12"><line x1="0" y1="-30" x2="0" y2="30" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="28" y2="-20" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="-38" y2="0" stroke="white" stroke-width="2"/><line x1="-38" y1="0" x2="-18" y2="0" stroke="white" stroke-width="2"/><line x1="28" y1="-20" x2="38" y2="0" stroke="white" stroke-width="2"/><line x1="38" y1="0" x2="18" y2="0" stroke="white" stroke-width="2"/><line x1="-10" y1="30" x2="10" y2="30" stroke="white" stroke-width="3"/></g>
-    <g transform="translate(920,320) rotate(20)" opacity="0.08"><line x1="0" y1="-30" x2="0" y2="30" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="28" y2="-20" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="-38" y2="0" stroke="white" stroke-width="2"/><line x1="-38" y1="0" x2="-18" y2="0" stroke="white" stroke-width="2"/><line x1="28" y1="-20" x2="38" y2="0" stroke="white" stroke-width="2"/><line x1="38" y1="0" x2="18" y2="0" stroke="white" stroke-width="2"/><line x1="-10" y1="30" x2="10" y2="30" stroke="white" stroke-width="3"/></g>
-    <g transform="translate(500,800) rotate(-30) scale(0.9)" opacity="0.1"><line x1="0" y1="-30" x2="0" y2="30" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="28" y2="-20" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="-38" y2="0" stroke="white" stroke-width="2"/><line x1="-38" y1="0" x2="-18" y2="0" stroke="white" stroke-width="2"/><line x1="28" y1="-20" x2="38" y2="0" stroke="white" stroke-width="2"/><line x1="38" y1="0" x2="18" y2="0" stroke="white" stroke-width="2"/><line x1="-10" y1="30" x2="10" y2="30" stroke="white" stroke-width="3"/></g>
-    <g transform="translate(850,700) rotate(-25)" opacity="0.08"><line x1="0" y1="-30" x2="0" y2="30" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="28" y2="-20" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="-38" y2="0" stroke="white" stroke-width="2"/><line x1="-38" y1="0" x2="-18" y2="0" stroke="white" stroke-width="2"/><line x1="28" y1="-20" x2="38" y2="0" stroke="white" stroke-width="2"/><line x1="38" y1="0" x2="18" y2="0" stroke="white" stroke-width="2"/><line x1="-10" y1="30" x2="10" y2="30" stroke="white" stroke-width="3"/></g>
-    <g transform="translate(150,550) rotate(35) scale(0.7)" opacity="0.08"><line x1="0" y1="-30" x2="0" y2="30" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="28" y2="-20" stroke="white" stroke-width="3"/><line x1="-28" y1="-20" x2="-38" y2="0" stroke="white" stroke-width="2"/><line x1="-38" y1="0" x2="-18" y2="0" stroke="white" stroke-width="2"/><line x1="28" y1="-20" x2="38" y2="0" stroke="white" stroke-width="2"/><line x1="38" y1="0" x2="18" y2="0" stroke="white" stroke-width="2"/><line x1="-10" y1="30" x2="10" y2="30" stroke="white" stroke-width="3"/></g>
+    <g transform="translate(80,180) rotate(-15)" opacity="0.1"><rect x="-20" y="-8" width="40" height="16" rx="4" fill="#C8A74E"/><rect x="-6" y="8" width="12" height="30" rx="3" fill="#C8A74E"/><rect x="-22" y="38" width="44" height="8" rx="2" fill="#C8A74E"/></g>
+    <g transform="translate(920,320) rotate(20)" opacity="0.07"><rect x="-20" y="-8" width="40" height="16" rx="4" fill="#C8A74E"/><rect x="-6" y="8" width="12" height="30" rx="3" fill="#C8A74E"/><rect x="-22" y="38" width="44" height="8" rx="2" fill="#C8A74E"/></g>
+    <g transform="translate(500,800) rotate(-30) scale(0.9)" opacity="0.08"><rect x="-20" y="-8" width="40" height="16" rx="4" fill="#C8A74E"/><rect x="-6" y="8" width="12" height="30" rx="3" fill="#C8A74E"/><rect x="-22" y="38" width="44" height="8" rx="2" fill="#C8A74E"/></g>
+    <g transform="translate(850,700) rotate(-25)" opacity="0.07"><rect x="-20" y="-8" width="40" height="16" rx="4" fill="#C8A74E"/><rect x="-6" y="8" width="12" height="30" rx="3" fill="#C8A74E"/><rect x="-22" y="38" width="44" height="8" rx="2" fill="#C8A74E"/></g>
+    <g transform="translate(150,550) rotate(35) scale(0.7)" opacity="0.07"><rect x="-20" y="-8" width="40" height="16" rx="4" fill="#C8A74E"/><rect x="-6" y="8" width="12" height="30" rx="3" fill="#C8A74E"/><rect x="-22" y="38" width="44" height="8" rx="2" fill="#C8A74E"/></g>
   </svg>
 </div>`;
 
-/** Aesthetics: sparkle/star watermark icons */
+/** Thriving Dentist: molar + dental mirror watermark icons (clinical style) */
+const TD_BG_B1 = `<div style="position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;">
+  <svg width="1080" height="1080" viewBox="0 0 1080 1080" style="position:absolute;inset:0;">
+    <g transform="translate(95,180) rotate(-12) scale(2.2)" opacity="0.055">
+      <rect x="-18" y="-22" width="36" height="26" rx="7" fill="#106EEA"/>
+      <ellipse cx="-9" cy="11" rx="6" ry="12" fill="#106EEA"/>
+      <ellipse cx="9" cy="11" rx="6" ry="12" fill="#106EEA"/>
+    </g>
+    <g transform="translate(960,240) rotate(28)" opacity="0.045">
+      <circle cx="0" cy="0" r="20" fill="none" stroke="#106EEA" stroke-width="5"/>
+      <rect x="-3" y="20" width="6" height="34" rx="3" fill="#106EEA"/>
+    </g>
+    <g transform="translate(62,590) rotate(22) scale(1.7)" opacity="0.04">
+      <rect x="-18" y="-22" width="36" height="26" rx="7" fill="#106EEA"/>
+      <ellipse cx="-9" cy="11" rx="6" ry="12" fill="#106EEA"/>
+      <ellipse cx="9" cy="11" rx="6" ry="12" fill="#106EEA"/>
+    </g>
+  </svg>
+</div>`;
+
+const TD_BG_FLEX = `<div style="position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;">
+  <svg width="1080" height="1080" viewBox="0 0 1080 1080" style="position:absolute;inset:0;">
+    <g transform="translate(95,140) rotate(-12) scale(2.2)" opacity="0.055">
+      <rect x="-18" y="-22" width="36" height="26" rx="7" fill="#106EEA"/>
+      <ellipse cx="-9" cy="11" rx="6" ry="12" fill="#106EEA"/>
+      <ellipse cx="9" cy="11" rx="6" ry="12" fill="#106EEA"/>
+    </g>
+    <g transform="translate(960,240) rotate(28)" opacity="0.045">
+      <circle cx="0" cy="0" r="20" fill="none" stroke="#106EEA" stroke-width="5"/>
+      <rect x="-3" y="20" width="6" height="34" rx="3" fill="#106EEA"/>
+    </g>
+    <g transform="translate(62,550) rotate(22) scale(1.7)" opacity="0.04">
+      <rect x="-18" y="-22" width="36" height="26" rx="7" fill="#106EEA"/>
+      <ellipse cx="-9" cy="11" rx="6" ry="12" fill="#106EEA"/>
+      <ellipse cx="9" cy="11" rx="6" ry="12" fill="#106EEA"/>
+    </g>
+    <g transform="translate(988,800) rotate(-22) scale(1.3)" opacity="0.05">
+      <circle cx="0" cy="0" r="20" fill="none" stroke="#106EEA" stroke-width="5"/>
+      <rect x="-3" y="20" width="6" height="34" rx="3" fill="#106EEA"/>
+    </g>
+    <g transform="translate(515,946) rotate(-7) scale(1.9)" opacity="0.04">
+      <rect x="-18" y="-22" width="36" height="26" rx="7" fill="#106EEA"/>
+      <ellipse cx="-9" cy="11" rx="6" ry="12" fill="#106EEA"/>
+      <ellipse cx="9" cy="11" rx="6" ry="12" fill="#106EEA"/>
+    </g>
+  </svg>
+</div>`;
+
+/** Business of Aesthetics: syringe/sparkle watermark icons */
 const AESTHETICS_BG_B1 = `<div style="position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;">
   <svg width="1080" height="1080" viewBox="0 0 1080 1080" style="position:absolute;inset:0;">
-    <g transform="translate(80,250) rotate(-15)" opacity="0.1"><path d="M0,-28 L4,-4 L28,0 L4,4 L0,28 L-4,4 L-28,0 L-4,-4 Z" fill="white"/></g>
+    <g transform="translate(80,250) rotate(-15)" opacity="0.08"><rect x="-4" y="-25" width="8" height="40" rx="3" fill="white"/><rect x="-10" y="-15" width="20" height="4" rx="1" fill="white"/><rect x="-10" y="-7" width="20" height="4" rx="1" fill="white"/><rect x="-10" y="1" width="20" height="4" rx="1" fill="white"/><polygon points="-5,15 5,15 0,25" fill="white"/></g>
     <g transform="translate(920,400) rotate(20)" opacity="0.06"><path d="M0,-28 L4,-4 L28,0 L4,4 L0,28 L-4,4 L-28,0 L-4,-4 Z" fill="white"/></g>
-    <g transform="translate(150,600) rotate(35) scale(0.7)" opacity="0.08"><path d="M0,-28 L4,-4 L28,0 L4,4 L0,28 L-4,4 L-28,0 L-4,-4 Z" fill="white"/></g>
+    <g transform="translate(150,600) rotate(35) scale(0.7)" opacity="0.07"><rect x="-4" y="-25" width="8" height="40" rx="3" fill="white"/><rect x="-10" y="-15" width="20" height="4" rx="1" fill="white"/><rect x="-10" y="-7" width="20" height="4" rx="1" fill="white"/><polygon points="-5,15 5,15 0,25" fill="white"/></g>
   </svg>
 </div>`;
 
 const AESTHETICS_BG_FLEX = `<div style="position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;">
   <svg width="1080" height="1080" viewBox="0 0 1080 1080" style="position:absolute;inset:0;">
-    <g transform="translate(80,180) rotate(-15)" opacity="0.12"><path d="M0,-28 L4,-4 L28,0 L4,4 L0,28 L-4,4 L-28,0 L-4,-4 Z" fill="white"/></g>
-    <g transform="translate(920,320) rotate(20)" opacity="0.08"><path d="M0,-28 L4,-4 L28,0 L4,4 L0,28 L-4,4 L-28,0 L-4,-4 Z" fill="white"/></g>
-    <g transform="translate(500,800) rotate(-30) scale(0.9)" opacity="0.1"><path d="M0,-28 L4,-4 L28,0 L4,4 L0,28 L-4,4 L-28,0 L-4,-4 Z" fill="white"/></g>
-    <g transform="translate(850,700) rotate(-25)" opacity="0.08"><path d="M0,-28 L4,-4 L28,0 L4,4 L0,28 L-4,4 L-28,0 L-4,-4 Z" fill="white"/></g>
-    <g transform="translate(150,550) rotate(35) scale(0.7)" opacity="0.08"><path d="M0,-28 L4,-4 L28,0 L4,4 L0,28 L-4,4 L-28,0 L-4,-4 Z" fill="white"/></g>
+    <g transform="translate(80,180) rotate(-15)" opacity="0.1"><rect x="-4" y="-25" width="8" height="40" rx="3" fill="white"/><rect x="-10" y="-15" width="20" height="4" rx="1" fill="white"/><rect x="-10" y="-7" width="20" height="4" rx="1" fill="white"/><rect x="-10" y="1" width="20" height="4" rx="1" fill="white"/><polygon points="-5,15 5,15 0,25" fill="white"/></g>
+    <g transform="translate(920,320) rotate(20)" opacity="0.06"><path d="M0,-28 L4,-4 L28,0 L4,4 L0,28 L-4,4 L-28,0 L-4,-4 Z" fill="white"/></g>
+    <g transform="translate(500,800) rotate(-30) scale(0.9)" opacity="0.08"><rect x="-4" y="-25" width="8" height="40" rx="3" fill="white"/><rect x="-10" y="-15" width="20" height="4" rx="1" fill="white"/><polygon points="-5,15 5,15 0,25" fill="white"/></g>
+    <g transform="translate(850,700) rotate(-25)" opacity="0.06"><path d="M0,-28 L4,-4 L28,0 L4,4 L0,28 L-4,4 L-28,0 L-4,-4 Z" fill="white"/></g>
+    <g transform="translate(150,550) rotate(35) scale(0.7)" opacity="0.07"><rect x="-4" y="-25" width="8" height="40" rx="3" fill="white"/><rect x="-10" y="-15" width="20" height="4" rx="1" fill="white"/><polygon points="-5,15 5,15 0,25" fill="white"/></g>
   </svg>
 </div>`;
 
@@ -528,11 +620,17 @@ function getLogoSvg(data: BannerData, u: string, w = 180, h = 60): string {
   const vc = data.verticalConfig;
   // For vet (or no vertical), use the full-detail VBI logo
   if (!vc || vc.id === 'vet') return vbiLogoSvg(u, w, h);
+  // For Thriving Dentist, use its custom logo as-is (no gradient IDs to conflict)
+  if (vc.id === 'thriving-dentist') {
+    return vc.logoSvg
+      .replace(/width="\d+"/, `width="${w}"`)
+      .replace(/height="\d+"/, `height="${h}"`);
+  }
   // For other verticals, use verticalConfig.logoSvg with unique gradient ID patched in
-  // makeLogo uses id="g1" — replace with a unique ID to avoid SVG conflicts
+  // makeLogo uses id="g1_<abbr>" — replace with a unique ID to avoid SVG conflicts
   return vc.logoSvg
-    .replace(/id="g1"/g, `id="g1_${u}"`)
-    .replace(/url\(#g1\)/g, `url(#g1_${u})`)
+    .replace(/id="g1_[a-z]+"/g, `id="g1_${u}"`)
+    .replace(/url\(#g1_[a-z]+\)/g, `url(#g1_${u})`)
     .replace(/width="\d+"/, `width="${w}"`)
     .replace(/height="\d+"/, `height="${h}"`);
 }
@@ -540,8 +638,8 @@ function getLogoSvg(data: BannerData, u: string, w = 180, h = 60): string {
 /** Returns the B1-style background watermark SVG based on vertical */
 function getBgB1(data: BannerData): string {
   const id = data.verticalConfig?.id;
-  if (id === 'dental') return DENTAL_BG_B1;
-  if (id === 'law') return LAW_BG_B1;
+  if (id === 'thriving-dentist') return TD_BG_B1;
+  if (id === 'dominate-law') return LAW_BG_B1;
   if (id === 'aesthetics') return AESTHETICS_BG_B1;
   return VET_BG_2P_B1;
 }
@@ -549,8 +647,8 @@ function getBgB1(data: BannerData): string {
 /** Returns the flex-layout background watermark SVG based on vertical */
 function getBgFlex(data: BannerData): string {
   const id = data.verticalConfig?.id;
-  if (id === 'dental') return DENTAL_BG_FLEX;
-  if (id === 'law') return LAW_BG_FLEX;
+  if (id === 'thriving-dentist') return TD_BG_FLEX;
+  if (id === 'dominate-law') return LAW_BG_FLEX;
   if (id === 'aesthetics') return AESTHETICS_BG_FLEX;
   return VET_BG_FLEX;
 }
@@ -704,7 +802,7 @@ function generateB2(data: BannerData): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 </head><body style="margin:0;padding:0;">
-<div style="width:1080px;height:1080px;display:flex;flex-direction:column;overflow:hidden;background:${t.bgGradient};">
+<div class="poster" style="width:1080px;height:1080px;display:flex;flex-direction:column;overflow:hidden;background:${t.bgGradient};">
   ${getBgFlex(data)}
   <div style="background:${t.headerBg};padding:22px 28px;text-align:center;flex-shrink:0;">
     <span style="font-family:Montserrat,Arial,sans-serif;font-size:32px;font-weight:900;color:${t.headerTextColor};letter-spacing:1px;text-transform:uppercase;">${data.headerText}</span>
@@ -757,7 +855,7 @@ function generateB3(data: BannerData): string {
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>.dark-top{background:${t.bgGradient};position:relative;overflow:hidden;}</style>
 </head><body style="margin:0;padding:0;">
-<div style="width:1080px;height:1080px;display:flex;flex-direction:column;overflow:hidden;">
+<div class="poster" style="width:1080px;height:1080px;display:flex;flex-direction:column;overflow:hidden;">
   ${getBgFlex(data)}
   <div class="dark-top" style="flex-shrink:0;padding:20px 36px 24px;position:relative;">
     <div style="position:absolute;top:16px;right:30px;z-index:5;">${getLogoSvg(data, u, 180, 60)}</div>
@@ -798,12 +896,12 @@ function generateB4(data: BannerData): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 </head><body style="margin:0;padding:0;">
-<div style="width:1080px;height:1080px;display:flex;flex-direction:column;overflow:hidden;background:${t.bgGradient};">
+<div class="poster" style="width:1080px;height:1080px;display:flex;flex-direction:column;overflow:hidden;background:${t.bgGradient};">
   ${getBgFlex(data)}
   <div style="background:${t.headerBg};padding:20px 28px;text-align:center;flex-shrink:0;">
     <span style="font-family:Montserrat,Arial,sans-serif;font-size:32px;font-weight:900;color:${t.headerTextColor};letter-spacing:1px;text-transform:uppercase;">${data.headerText}</span>
   </div>
-  <div style="background:rgba(0,20,10,0.4);padding:18px 40px;position:relative;flex-shrink:0;">
+  <div style="background:${t.darkBg}66;padding:18px 40px;position:relative;flex-shrink:0;">
     <div style="position:absolute;top:14px;right:32px;">${getLogoSvg(data, u, 180, 60)}</div>
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:700;color:${t.lime};margin-bottom:8px;">${data.panelName}</div>
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:900;color:#ffffff;line-height:1.2;max-width:680px;">${data.panelTopic}</div>
@@ -824,7 +922,7 @@ function generateB4(data: BannerData): string {
     </div>
   </div>
   <div style="height:4px;background:linear-gradient(90deg,${t.separatorColor}1a,${t.separatorColor},${t.separatorColor}1a);flex-shrink:0;"></div>
-  <div style="background:rgba(0,20,10,0.5);padding:18px 36px;position:relative;display:flex;align-items:center;flex-shrink:0;min-height:155px;">
+  <div style="background:${t.darkBg}80;padding:18px 36px;position:relative;display:flex;align-items:center;flex-shrink:0;min-height:155px;">
     <div style="position:absolute;left:36px;top:50%;transform:translateY(-50%);text-align:center;">
       ${qrUrl ? `<div style="border:3px solid ${t.accent};border-radius:10px;padding:7px;background:#fff;display:inline-block;">
         <img src="${qrUrl}" style="width:110px;height:110px;display:block;">
@@ -865,12 +963,12 @@ function generateB5(data: BannerData): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 </head><body style="margin:0;padding:0;">
-<div style="width:1080px;height:1080px;display:flex;flex-direction:column;overflow:hidden;background:${t.bgGradient};">
+<div class="poster" style="width:1080px;height:1080px;display:flex;flex-direction:column;overflow:hidden;background:${t.bgGradient};">
   ${getBgFlex(data)}
   <div style="background:${t.headerBg};padding:20px 28px;text-align:center;flex-shrink:0;">
     <span style="font-family:Montserrat,Arial,sans-serif;font-size:32px;font-weight:900;color:${t.headerTextColor};letter-spacing:1px;text-transform:uppercase;">${data.headerText}</span>
   </div>
-  <div style="background:rgba(0,20,10,0.4);padding:16px 40px;position:relative;flex-shrink:0;">
+  <div style="background:${t.darkBg}66;padding:16px 40px;position:relative;flex-shrink:0;">
     <div style="position:absolute;top:12px;right:32px;z-index:5;">${getLogoSvg(data, u, 180, 60)}</div>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;">
       <div style="width:18px;height:18px;border-radius:50%;background:#ff3333;box-shadow:0 0 0 4px rgba(255,51,51,0.3);flex-shrink:0;"></div>
@@ -884,7 +982,7 @@ function generateB5(data: BannerData): string {
     ${panelistsHtml}
   </div>
   <div style="height:4px;background:linear-gradient(90deg,${t.separatorColor}1a,${t.separatorColor},${t.separatorColor}1a);flex-shrink:0;"></div>
-  <div style="background:rgba(0,20,10,0.5);padding:18px 36px;position:relative;display:flex;align-items:center;flex-shrink:0;min-height:155px;">
+  <div style="background:${t.darkBg}80;padding:18px 36px;position:relative;display:flex;align-items:center;flex-shrink:0;min-height:155px;">
     <div style="position:absolute;left:36px;top:50%;transform:translateY(-50%);text-align:center;">
       ${qrUrl ? `<div style="border:3px solid ${t.accent};border-radius:10px;padding:7px;background:#fff;display:inline-block;">
         <img src="${qrUrl}" style="width:110px;height:110px;display:block;">

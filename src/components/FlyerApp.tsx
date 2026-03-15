@@ -82,9 +82,9 @@ function VerticalIcon({ id, className }: { id: VerticalId; className?: string })
   switch (id) {
     case 'vet':
       return <PawPrint className={className} />;
-    case 'dental':
-      return <Plus className={className} />;
-    case 'law':
+    case 'thriving-dentist':
+      return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="24" height="24"><rect x="6" y="4" width="12" height="10" rx="3"/><path d="M8 14 L7 22"/><path d="M16 14 L17 22"/></svg>;
+    case 'dominate-law':
       return <Scale className={className} />;
     case 'aesthetics':
       return <Sparkles className={className} />;
@@ -97,8 +97,8 @@ function VerticalIcon({ id, className }: { id: VerticalId; className?: string })
 
 const VERTICAL_EMOJI: Record<VerticalId, string> = {
   vet: '🐾',
-  dental: '🦷',
-  law: '⚖️',
+  'thriving-dentist': '🦷',
+  'dominate-law': '⚖️',
   aesthetics: '✨',
 };
 
@@ -546,6 +546,20 @@ export default function FlyerApp() {
     setWebsiteUrl(config.websiteUrl);
     setBanners([]);
     setVisibleBannerIds(new Set());
+    // Auto-select matching theme per vertical
+    const themeMap: Record<string, string> = {
+      'thriving-dentist': 'thriving-dentist',
+      'dominate-law': 'dominate-law',
+      'aesthetics': 'business-aesthetics',
+    };
+    const targetThemeId = themeMap[id];
+    if (targetThemeId) {
+      const match = BANNER_THEMES.find(t => t.id === targetThemeId);
+      if (match) setSelectedTheme(match);
+    } else if (['thriving-dentist', 'dominate-law', 'business-aesthetics'].includes(selectedTheme.id)) {
+      // Switching to VET, reset to classic
+      setSelectedTheme(BANNER_THEMES[0]);
+    }
   };
 
   const addPanelist = () => {
@@ -694,7 +708,7 @@ export default function FlyerApp() {
     // Additional wait for Google Fonts to render
     await new Promise((r) => setTimeout(r, 300));
 
-    const posterEl = iframeDoc.querySelector('.poster') as HTMLElement;
+    const posterEl = (iframeDoc.querySelector('.poster') || iframeDoc.querySelector('body > div')) as HTMLElement;
     if (!posterEl) throw new Error('Could not find .poster element');
 
     const canvas = await html2canvas(posterEl, {
@@ -943,9 +957,9 @@ ${banner.html}
       const folderLower = parsed.folderName.toLowerCase();
       const allText = docLower + ' ' + folderLower;
       let detectedVertical: VerticalId | null = null;
-      if (/dental|dentist|dds|dmd|orthodont/i.test(allText)) detectedVertical = 'dental';
-      else if (/aesthetic|med\s*spa|medispa|botox|filler|skin\s*care|dermatolog/i.test(allText)) detectedVertical = 'aesthetics';
-      else if (/law|attorney|legal|counsel|barrister|solicitor|esquire/i.test(allText)) detectedVertical = 'law';
+      if (/thriving\s*dentist|dental|dentist|dds|dmd|orthodont/i.test(allText)) detectedVertical = 'thriving-dentist';
+      else if (/aesthetic|med\s*spa|medispa|botox|filler|skin\s*care|dermatolog|beauty/i.test(allText)) detectedVertical = 'aesthetics';
+      else if (/dominate\s*law|law|attorney|legal|counsel|barrister|solicitor|esquire/i.test(allText)) detectedVertical = 'dominate-law';
       else if (/vet|veterinar|dvm|animal\s*hospital|animal\s*clinic|pet\s*care/i.test(allText)) detectedVertical = 'vet';
 
       if (detectedVertical && detectedVertical !== selectedVertical) {

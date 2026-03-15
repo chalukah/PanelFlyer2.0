@@ -40,14 +40,13 @@ function VerticalIcon({ id, className }: { id: VerticalId; className?: string })
   switch (id) {
     case 'vet':
       return <PawPrint className={className} />;
-    case 'dental':
-      // Lucide doesn't have a tooth icon; use a simple SVG inline
+    case 'thriving-dentist':
       return (
         <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 2C9.5 2 7 4 7 7c0 3-1 6-2 9s0 6 2 6c1.5 0 2.5-2 3-4 .5-2 1-2 2-2s1.5 0 2 2c.5 2 1.5 4 3 4 2 0 3-3 2-6s-2-6-2-9c0-3-2.5-5-5-5z" />
+          <rect x="6" y="4" width="12" height="10" rx="3"/><path d="M8 14 L7 22"/><path d="M16 14 L17 22"/>
         </svg>
       );
-    case 'law':
+    case 'dominate-law':
       return <Scale className={className} />;
     case 'aesthetics':
       return <Sparkles className={className} />;
