@@ -2,13 +2,65 @@ import express from 'express';
 import cors from 'cors';
 import { spawn, execFileSync } from 'child_process';
 import { homedir } from 'os';
-import { join } from 'path';
-import { mkdtempSync, readFileSync, rmSync, readdirSync } from 'fs';
+import { join, resolve } from 'path';
+import { mkdtempSync, readFileSync, rmSync, readdirSync, writeFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
+import puppeteer from 'puppeteer';
+import Anthropic from '@anthropic-ai/sdk';
 
 const app = express();
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '50mb' }));
 app.use(cors({ origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'] }));
+
+// ——————————————————————————————————————
+// Puppeteer browser pool (lazy-init singleton)
+// ——————————————————————————————————————
+let _browser: puppeteer.Browser | null = null;
+async function getBrowser(): Promise<puppeteer.Browser> {
+  if (!_browser || !_browser.connected) {
+    _browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+    });
+  }
+  return _browser;
+}
+
+// ——————————————————————————————————————
+// POST /api/render-png — Server-side HTML → PNG using real Chrome
+// ——————————————————————————————————————
+app.post('/api/render-png', async (req, res) => {
+  try {
+    const { html } = req.body;
+    if (!html) return res.status(400).json({ error: 'html field required' });
+
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+
+    // Wait for all images (data URLs load instantly, but Google Fonts need network)
+    await page.evaluate(() => {
+      return Promise.all(
+        Array.from(document.querySelectorAll('img')).map((img) =>
+          img.complete ? Promise.resolve() : new Promise((r) => { img.onload = r; img.onerror = r; })
+        )
+      );
+    });
+
+    // Small extra wait for fonts
+    await new Promise((r) => setTimeout(r, 500));
+
+    const pngBuffer = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 1080, height: 1080 } });
+    await page.close();
+
+    res.set('Content-Type', 'image/png');
+    res.send(pngBuffer);
+  } catch (err) {
+    console.error('render-png error:', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Render failed' });
+  }
+});
 
 // --- Claude Binary Resolution ---
 
@@ -500,7 +552,40 @@ Respond with ONLY the JSON object, no other text.`;
       });
     }
 
-    const extracted = JSON.parse(jsonMatch[0]);
+    let extracted = JSON.parse(jsonMatch[0]);
+
+    // Zod validation — coerce missing fields to defaults
+    try {
+      const { z } = await import('zod');
+      const ParsedPanelistSchema = z.object({
+        name: z.string().default(''),
+        firstName: z.string().default(''),
+        title: z.string().default(''),
+        org: z.string().default(''),
+        email: z.string().default(''),
+        phone: z.string().default(''),
+        headshotMatch: z.string().optional(),
+        headshotUrl: z.string().optional(),
+      });
+      const ExtractSchema = z.object({
+        panelName: z.string().default(''),
+        panelTopic: z.string().default(''),
+        panelSubtitle: z.string().default(''),
+        eventDate: z.string().default(''),
+        eventTime: z.string().default(''),
+        websiteUrl: z.string().default(''),
+        zoomRegistrationUrl: z.string().default(''),
+        headerText: z.string().default(''),
+        panelists: z.array(ParsedPanelistSchema).default([]),
+      });
+      const validated = ExtractSchema.safeParse(extracted);
+      if (validated.success) {
+        extracted = validated.data;
+      } else {
+        console.warn('[gog extract] Zod validation warnings:', validated.error.issues.map(i => `${i.path.join('.')}: ${i.message}`));
+      }
+    } catch { /* zod not available, skip validation */ }
+
     console.log('[gog extract] AI → topic:', extracted.panelTopic, '| subtitle:', extracted.panelSubtitle);
     console.log('[gog extract] Folder → topic:', folderTopic, '| subtitle:', folderSubtitle);
     console.log('[gog extract] Panelists:', JSON.stringify((extracted.panelists || []).map((p: any) => ({ name: p.name, title: p.title, org: p.org }))));
@@ -549,6 +634,101 @@ Respond with ONLY the JSON object, no other text.`;
 
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Extraction failed' });
+  }
+});
+
+// ——————————————————————————————————————
+// POST /api/ai/generate-sdk — Anthropic SDK (API key from client)
+// ——————————————————————————————————————
+app.post('/api/ai/generate-sdk', async (req, res) => {
+  const { apiKey, model, messages, max_tokens } = req.body;
+  if (!apiKey) return res.status(400).json({ error: 'apiKey required' });
+  if (!messages) return res.status(400).json({ error: 'messages required' });
+
+  try {
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: model || 'claude-sonnet-4-20250514',
+      max_tokens: max_tokens || 4096,
+      messages,
+    });
+
+    res.json(response);
+  } catch (err: any) {
+    const status = err?.status || 500;
+    const message = err?.message || 'Anthropic SDK error';
+    res.status(status).json({ error: { message } });
+  }
+});
+
+// ——————————————————————————————————————
+// POST /api/render-batch — Batch HTML → PNG rendering
+// ——————————————————————————————————————
+app.post('/api/render-batch', async (req, res) => {
+  try {
+    const { htmlList } = req.body;
+    if (!Array.isArray(htmlList) || htmlList.length === 0) {
+      return res.status(400).json({ error: 'htmlList array required' });
+    }
+
+    const browser = await getBrowser();
+    const images: string[] = [];
+
+    // Render in parallel (max 4 at a time)
+    const concurrency = 4;
+    for (let i = 0; i < htmlList.length; i += concurrency) {
+      const batch = htmlList.slice(i, i + concurrency);
+      const batchResults = await Promise.all(
+        batch.map(async (html: string) => {
+          const page = await browser.newPage();
+          await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
+          await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+          await page.evaluate(() =>
+            Promise.all(
+              Array.from(document.querySelectorAll('img')).map((img) =>
+                img.complete ? Promise.resolve() : new Promise((r) => { img.onload = r; img.onerror = r; })
+              )
+            )
+          );
+          await new Promise((r) => setTimeout(r, 300));
+          const buffer = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 1080, height: 1080 } });
+          await page.close();
+          return Buffer.isBuffer(buffer) ? buffer.toString('base64') : Buffer.from(buffer).toString('base64');
+        })
+      );
+      images.push(...batchResults);
+    }
+
+    res.json({ images });
+  } catch (err) {
+    console.error('render-batch error:', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Batch render failed' });
+  }
+});
+
+// ——————————————————————————————————————
+// GET /api/email-templates — Serve email HTML from disk
+// ——————————————————————————————————————
+app.get('/api/email-templates', (_req, res) => {
+  try {
+    const templatesDir = resolve(__dirname, '..', 'PANEL EMAIL TEMPLATES');
+    if (!existsSync(templatesDir)) {
+      return res.json({ templates: {} });
+    }
+
+    const files = readdirSync(templatesDir).filter((f: string) => f.endsWith('.html'));
+    const templates: Record<string, string> = {};
+
+    for (const file of files) {
+      const content = readFileSync(join(templatesDir, file), 'utf-8');
+      // Use filename (without .html) as key
+      const key = file.replace(/\.html$/i, '');
+      templates[key] = content;
+    }
+
+    res.json({ templates });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load templates' });
   }
 });
 

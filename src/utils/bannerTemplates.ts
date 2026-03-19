@@ -440,6 +440,54 @@ function qrPlaceholder(size: number, borderColor: string): string {
   </div>`;
 }
 
+/** Strip credential suffixes from title (DVM, DDS, MD, JD, MBA, etc.) */
+function cleanTitle(title: string): string {
+  if (!title) return '';
+  // Remove leading credential patterns like "DVM, Founder" → "Founder"
+  return title
+    .replace(/^(?:Dr\.?\s*)?(?:DVM|DDS|DMD|MD|DO|JD|PhD|MBA|CPA|LE|RN|DACVIM|DACVS|DAVDC|CVT|RVT|LVT|BVSc|BVetMed|MRCVS|FRCVS)\s*[,;]\s*/gi, '')
+    .replace(/\s*[,;]\s*(?:DVM|DDS|DMD|MD|DO|JD|PhD|MBA|CPA|LE|RN|DACVIM|DACVS|DAVDC|CVT|RVT|LVT|BVSc|BVetMed|MRCVS|FRCVS)\s*$/gi, '')
+    .trim();
+}
+
+/** Deduplicate: if panelName and panelTopic are identical or one contains the other, separate them */
+function deduplicateFields(data: BannerData): { panelName: string; panelTopic: string; panelSubtitle: string } {
+  let name = (data.panelName || '').trim();
+  let topic = cleanTopic(data.panelTopic || '');
+  let subtitle = data.panelSubtitle ? cleanTopic(data.panelSubtitle) : '';
+
+  const nameLower = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const topicLower = topic.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // Case 1: panelName and panelTopic are identical → topic should be the subtitle, subtitle becomes empty
+  if (nameLower && topicLower && nameLower === topicLower) {
+    if (subtitle) {
+      // Shift: topic ← subtitle, subtitle ← empty
+      topic = subtitle;
+      subtitle = '';
+    } else {
+      // No subtitle either — show name only, clear topic to avoid duplication
+      topic = '';
+    }
+  }
+
+  // Case 2: panelName contains the topic (e.g. name="Vet Ownership & Leadership Panel", topic="Vet Ownership & Leadership Panel")
+  if (nameLower && topicLower && nameLower.includes(topicLower) && nameLower !== topicLower) {
+    if (subtitle) {
+      topic = subtitle;
+      subtitle = '';
+    }
+  }
+
+  // Case 3: Subtitle duplicates topic
+  const subtitleLower = subtitle.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (topicLower && subtitleLower && topicLower === subtitleLower) {
+    subtitle = '';
+  }
+
+  return { panelName: name, panelTopic: topic, panelSubtitle: subtitle };
+}
+
 function getTheme(data: BannerData): BannerTheme {
   return data.theme || BANNER_THEMES[0];
 }
@@ -701,35 +749,38 @@ function getBgFlex(data: BannerData): string {
 // ——————————————————————————————————————————————
 
 function renderPanelistCard2P(p: { name: string; title: string; org: string; headshotUrl: string }, textColor: string, subtitleColor: string, theme: BannerTheme): string {
-  return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;">
+  const title = cleanTitle(p.title);
+  return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;max-width:460px;">
     <div style="width:320px;height:320px;border-radius:50%;border:8px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);">
       <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
     </div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:26px;font-weight:800;color:${textColor};text-align:center;margin-top:14px;line-height:1.25;">${p.name}</div>
-    ${p.title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:6px;line-height:1.3;">${p.title}</div>` : ''}
-    ${p.org ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:15px;font-weight:500;color:${subtitleColor};text-align:center;margin-top:2px;line-height:1.3;opacity:0.85;">${p.org}</div>` : ''}
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:32px;font-weight:800;color:${textColor};text-align:center;margin-top:14px;line-height:1.25;max-width:420px;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+    ${title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:6px;line-height:1.3;max-width:400px;">${title}</div>` : ''}
+    ${p.org ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:18px;font-weight:500;color:${subtitleColor};text-align:center;margin-top:2px;line-height:1.3;opacity:0.85;max-width:400px;">${p.org}</div>` : ''}
   </div>`;
 }
 
 function renderPanelistCard3P(p: { name: string; title: string; org: string; headshotUrl: string }, textColor: string, subtitleColor: string, theme: BannerTheme): string {
-  return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;">
+  const title = cleanTitle(p.title);
+  return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;max-width:340px;">
     <div style="width:270px;height:270px;border-radius:50%;border:8px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);">
       <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
     </div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:800;color:${textColor};text-align:center;margin-top:14px;line-height:1.25;">${p.name}</div>
-    ${p.title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:15px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:6px;line-height:1.3;">${p.title}</div>` : ''}
-    ${p.org ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:13px;font-weight:500;color:${subtitleColor};text-align:center;margin-top:2px;line-height:1.3;opacity:0.85;">${p.org}</div>` : ''}
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:800;color:${textColor};text-align:center;margin-top:14px;line-height:1.25;max-width:320px;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+    ${title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:20px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:6px;line-height:1.3;max-width:300px;">${title}</div>` : ''}
+    ${p.org ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:16px;font-weight:500;color:${subtitleColor};text-align:center;margin-top:2px;line-height:1.3;opacity:0.85;max-width:300px;">${p.org}</div>` : ''}
   </div>`;
 }
 
 function renderPanelistCard4P(p: { name: string; title: string; org: string; headshotUrl: string }, textColor: string, subtitleColor: string, theme: BannerTheme): string {
-  return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;">
+  const title = cleanTitle(p.title);
+  return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;max-width:260px;">
     <div style="width:220px;height:220px;border-radius:50%;border:6px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);">
       <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
     </div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:20px;font-weight:800;color:${textColor};text-align:center;margin-top:12px;line-height:1.25;">${p.name}</div>
-    ${p.title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:14px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:4px;line-height:1.3;">${p.title}</div>` : ''}
-    ${p.org ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:12px;font-weight:500;color:${subtitleColor};text-align:center;margin-top:2px;line-height:1.3;opacity:0.85;">${p.org}</div>` : ''}
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:26px;font-weight:800;color:${textColor};text-align:center;margin-top:12px;line-height:1.25;max-width:240px;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+    ${title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:18px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:4px;line-height:1.3;max-width:240px;">${title}</div>` : ''}
+    ${p.org ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:15px;font-weight:500;color:${subtitleColor};text-align:center;margin-top:2px;line-height:1.3;opacity:0.85;max-width:240px;">${p.org}</div>` : ''}
   </div>`;
 }
 
@@ -741,8 +792,10 @@ function generateB1(data: BannerData): string {
   const u = uid();
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B1');
-  const topic = cleanTopic(data.panelTopic);
-  const subtitle = data.panelSubtitle ? cleanTopic(data.panelSubtitle) : '';
+  const { panelName: dedupName, panelTopic: dedupTopic, panelSubtitle: dedupSubtitle } = deduplicateFields(data);
+  const topic = dedupTopic;
+  const subtitle = dedupSubtitle;
+  const pTitle = cleanTitle(data.panelistTitle);
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -774,17 +827,17 @@ function generateB1(data: BannerData): string {
       <!-- VBI Logo -->
       <div style="position:absolute;top:20px;right:32px;z-index:5;">${getLogoSvg(data, u, 165, 56)}</div>
 
-      <div style="font-size:22px;font-weight:700;color:${t.lime};margin-bottom:14px;letter-spacing:0.5px;">${data.panelName}</div>
-      <div style="font-size:44px;font-weight:900;color:#ffffff;line-height:1.1;margin-bottom:20px;">${topic}</div>
+      <div style="font-size:22px;font-weight:700;color:${t.lime};margin-bottom:14px;letter-spacing:0.5px;">${dedupName}</div>
+      ${topic ? `<div style="font-size:44px;font-weight:900;color:#ffffff;line-height:1.1;margin-bottom:20px;">${topic}</div>` : ''}
 
       ${subtitle ? `<div style="background:${t.accentGradient};border-radius:20px;padding:24px 32px;max-width:480px;">
         <div style="font-size:30px;font-weight:800;color:#ffffff;line-height:1.2;">${subtitle}</div>
       </div>` : ''}
 
       <div style="margin-top:32px;">
-        <div style="font-size:40px;font-weight:800;color:#ffffff;">${data.panelistName}</div>
-        ${data.panelistTitle ? `<div style="font-size:24px;font-weight:600;color:${t.subtitleColor};margin-top:8px;">${data.panelistTitle}</div>` : ''}
-        ${data.panelistOrg ? `<div style="font-size:20px;font-weight:500;color:${t.subtitleColor};margin-top:4px;opacity:0.85;">${data.panelistOrg}</div>` : ''}
+        <div style="font-size:48px;font-weight:800;color:#ffffff;">${data.panelistName}</div>
+        ${pTitle ? `<div style="font-size:30px;font-weight:600;color:${t.subtitleColor};margin-top:8px;">${pTitle}</div>` : ''}
+        ${data.panelistOrg ? `<div style="font-size:24px;font-weight:500;color:${t.subtitleColor};margin-top:4px;opacity:0.85;">${data.panelistOrg}</div>` : ''}
       </div>
     </div>
 
@@ -831,6 +884,7 @@ function generateB2(data: BannerData): string {
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B2');
   const panelists = data.allPanelists || [];
+  const { panelName: dedupName, panelTopic: dedupTopic, panelSubtitle: dedupSubtitle } = deduplicateFields(data);
 
   const variant = getPanelistVariant(data);
   const panelistsHtml = panelists.map(p =>
@@ -852,8 +906,8 @@ function generateB2(data: BannerData): string {
   <div style="flex:1;display:flex;flex-direction:column;padding:22px 40px 18px;position:relative;">
     <div style="position:absolute;top:20px;right:34px;z-index:5;">${getLogoSvg(data, u, 180, 60)}</div>
     <div style="max-width:700px;">
-      <div style="font-family:Montserrat,Arial,sans-serif;font-size:24px;font-weight:700;color:${t.lime};margin-bottom:10px;">${data.panelName}</div>
-      <div style="font-family:Montserrat,Arial,sans-serif;font-size:40px;font-weight:900;color:#ffffff;line-height:1.15;">${cleanTopic(data.panelTopic)}${data.panelSubtitle ? ': ' + cleanTopic(data.panelSubtitle) : ''}</div>
+      <div style="font-family:Montserrat,Arial,sans-serif;font-size:24px;font-weight:700;color:${t.lime};margin-bottom:10px;">${dedupName}</div>
+      <div style="font-family:Montserrat,Arial,sans-serif;font-size:40px;font-weight:900;color:#ffffff;line-height:1.15;">${dedupTopic}${dedupSubtitle ? ': ' + dedupSubtitle : ''}</div>
     </div>
     <div style="display:flex;justify-content:center;gap:${gap};flex:1;align-items:center;margin-top:8px;">
       ${panelistsHtml}
@@ -883,6 +937,7 @@ function generateB3(data: BannerData): string {
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B3');
   const panelists = data.allPanelists || [];
+  const { panelName: dedupName, panelTopic: dedupTopic, panelSubtitle: dedupSubtitle } = deduplicateFields(data);
 
   const variant = getPanelistVariant(data);
   const panelistsHtml = panelists.map(p =>
@@ -904,8 +959,8 @@ function generateB3(data: BannerData): string {
     <div style="background:${t.headerBg};display:inline-block;padding:6px 20px;border-radius:6px;margin-bottom:12px;">
       <span style="font-family:Montserrat,Arial,sans-serif;font-size:15px;font-weight:800;color:${t.headerTextColor};letter-spacing:1px;text-transform:uppercase;">${data.headerText}</span>
     </div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:700;color:${t.lime};margin-bottom:10px;">${data.panelName}</div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:36px;font-weight:900;color:#ffffff;line-height:1.2;max-width:800px;">${cleanTopic(data.panelTopic)}${data.panelSubtitle ? ': ' + cleanTopic(data.panelSubtitle) : ''}</div>
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:700;color:${t.lime};margin-bottom:10px;">${dedupName}</div>
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:36px;font-weight:900;color:#ffffff;line-height:1.2;max-width:800px;">${dedupTopic}${dedupSubtitle ? ': ' + dedupSubtitle : ''}</div>
   </div>
   <div style="flex:1;background:#ffffff;display:flex;align-items:center;justify-content:center;padding:18px 36px;">
     <div style="display:flex;justify-content:center;gap:${gap};width:100%;">${panelistsHtml}</div>
@@ -933,6 +988,8 @@ function generateB4(data: BannerData): string {
   const u = uid();
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B4');
+  const { panelName: dedupName, panelTopic: dedupTopic, panelSubtitle: dedupSubtitle } = deduplicateFields(data);
+  const pTitle = cleanTitle(data.panelistTitle);
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -944,8 +1001,8 @@ function generateB4(data: BannerData): string {
   </div>
   <div style="background:${t.darkBg}66;padding:18px 40px;position:relative;flex-shrink:0;">
     <div style="position:absolute;top:14px;right:32px;">${getLogoSvg(data, u, 180, 60)}</div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:700;color:${t.lime};margin-bottom:8px;">${data.panelName}</div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:900;color:#ffffff;line-height:1.2;max-width:680px;">${cleanTopic(data.panelTopic)}${data.panelSubtitle ? ': ' + cleanTopic(data.panelSubtitle) : ''}</div>
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:700;color:${t.lime};margin-bottom:8px;">${dedupName}</div>
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:34px;font-weight:900;color:#ffffff;line-height:1.2;max-width:680px;">${dedupTopic}${dedupSubtitle ? ': ' + dedupSubtitle : ''}</div>
   </div>
   <div style="height:4px;background:linear-gradient(90deg,${t.separatorColor},${t.separatorColor}1a);flex-shrink:0;"></div>
   <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:30px 50px;gap:0;">
@@ -953,9 +1010,9 @@ function generateB4(data: BannerData): string {
       <div style="width:320px;height:320px;border-radius:50%;border:8px solid ${t.accent};overflow:hidden;box-shadow:0 0 0 4px ${t.neonBorder}40,0 16px 48px rgba(0,0,0,0.6);">
         <img src="${data.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
       </div>
-      <div style="font-family:Montserrat,Arial,sans-serif;font-size:26px;font-weight:800;color:#ffffff;text-align:center;margin-top:20px;">${data.panelistName}</div>
-      ${data.panelistTitle ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:600;color:${t.lime};text-align:center;margin-top:8px;">${data.panelistTitle}</div>` : ''}
-      ${data.panelistOrg ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:15px;font-weight:500;color:${t.lime};text-align:center;margin-top:4px;opacity:0.85;">${data.panelistOrg}</div>` : ''}
+      <div style="font-family:Montserrat,Arial,sans-serif;font-size:32px;font-weight:800;color:#ffffff;text-align:center;margin-top:20px;">${data.panelistName}</div>
+      ${pTitle ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:600;color:${t.lime};text-align:center;margin-top:8px;">${pTitle}</div>` : ''}
+      ${data.panelistOrg ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:18px;font-weight:500;color:${t.lime};text-align:center;margin-top:4px;opacity:0.85;">${data.panelistOrg}</div>` : ''}
     </div>
     <div style="width:3px;height:320px;background:linear-gradient(180deg,transparent,${t.separatorColor},transparent);margin:0 40px;flex-shrink:0;"></div>
     <div style="display:flex;flex-direction:column;align-items:flex-start;flex-shrink:0;">
@@ -992,6 +1049,7 @@ function generateB5(data: BannerData): string {
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B5');
   const panelists = data.allPanelists || [];
+  const { panelName: dedupName, panelTopic: dedupTopic, panelSubtitle: dedupSubtitle } = deduplicateFields(data);
 
   const variant = getPanelistVariant(data);
   const panelistsHtml = panelists.map(p =>
@@ -1016,8 +1074,8 @@ function generateB5(data: BannerData): string {
       <div style="width:18px;height:18px;border-radius:50%;background:#ff3333;box-shadow:0 0 0 4px rgba(255,51,51,0.3);flex-shrink:0;"></div>
       <div style="font-family:Montserrat,Arial,sans-serif;font-size:42px;font-weight:900;color:${t.lime};letter-spacing:1px;">HAPPENING TODAY!</div>
     </div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:20px;font-weight:700;color:#ffffff;">${data.panelName}</div>
-    <div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:600;color:rgba(255,255,255,0.7);max-width:680px;">${cleanTopic(data.panelTopic)}${data.panelSubtitle ? ': ' + cleanTopic(data.panelSubtitle) : ''}</div>
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:24px;font-weight:700;color:#ffffff;">${dedupName}</div>
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:600;color:rgba(255,255,255,0.85);max-width:780px;">${dedupTopic}${dedupSubtitle ? ': ' + dedupSubtitle : ''}</div>
   </div>
   <div style="height:4px;background:linear-gradient(90deg,${t.separatorColor},${t.separatorColor}1a);flex-shrink:0;"></div>
   <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px 40px;gap:${gap};">
@@ -1051,52 +1109,52 @@ export function generateBannersForPanelist(data: BannerData): GeneratedBanner[] 
   const safeName = data.panelistName.replace(/[^a-zA-Z0-9]/g, '_');
   const banners: GeneratedBanner[] = [];
 
-  // B1 — Intro (per-panelist)
+  // The Intro (per-panelist)
   banners.push({
     id: `b1_${safeName}_${uid()}`,
     type: 'B1',
-    label: `B1 - Intro - ${data.panelistName}`,
-    fileName: `B1_Intro_${safeName}`,
+    label: `The Intro - ${data.panelistName}`,
+    fileName: `The_Intro_${safeName}`,
     html: generateB1(data),
     panelistName: data.panelistName,
   });
 
-  // B2 — Introduction to Panel 1 (all panelists)
+  // Introduction to Panel One (all panelists)
   banners.push({
     id: `b2_${safeName}_${uid()}`,
     type: 'B2',
-    label: `B2 - Introduction to Panel 1`,
-    fileName: `B2_IntroPanel1_${safeName}`,
+    label: `Introduction to Panel One - ${data.panelistName}`,
+    fileName: `Introduction_to_Panel_One_${safeName}`,
     html: generateB2(data),
     panelistName: data.panelistName,
   });
 
-  // B3 — Introduction to Panel 2 (all panelists)
+  // Introduction to Panel Two (all panelists)
   banners.push({
     id: `b3_${safeName}_${uid()}`,
     type: 'B3',
-    label: `B3 - Introduction to Panel 2`,
-    fileName: `B3_IntroPanel2_${safeName}`,
+    label: `Introduction to Panel Two - ${data.panelistName}`,
+    fileName: `Introduction_to_Panel_Two_${safeName}`,
     html: generateB3(data),
     panelistName: data.panelistName,
   });
 
-  // B4 — One More Day (per-panelist)
+  // One More Day (per-panelist)
   banners.push({
     id: `b4_${safeName}_${uid()}`,
     type: 'B4',
-    label: `B4 - One More Day - ${data.panelistName}`,
-    fileName: `B4_OneMoreDay_${safeName}`,
+    label: `One More Day - ${data.panelistName}`,
+    fileName: `One_More_Day_${safeName}`,
     html: generateB4(data),
     panelistName: data.panelistName,
   });
 
-  // B5 — Happening Today (all panelists)
+  // Happening Today (all panelists)
   banners.push({
     id: `b5_${safeName}_${uid()}`,
     type: 'B5',
-    label: `B5 - Happening Today`,
-    fileName: `B5_HappeningToday_${safeName}`,
+    label: `Happening Today - ${data.panelistName}`,
+    fileName: `Happening_Today_${safeName}`,
     html: generateB5(data),
     panelistName: data.panelistName,
   });

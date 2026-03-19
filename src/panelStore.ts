@@ -5,6 +5,7 @@ import { EMAIL_TEMPLATES } from './data/emailTemplates';
 import { replaceVariables, processConditionalSections, generateSubjectLine, validateTemplate } from './utils/templateEngine';
 import { wrapEmailContent, extractEmailContent, createSignature } from './utils/emailTemplateWrapper';
 import { EVENT_CHECKLIST_SEEDS } from './data/eventChecklistTemplate';
+import * as sync from './lib/supabaseSync';
 
 type UIState = {
   theme: 'system' | 'light' | 'dark';
@@ -181,6 +182,8 @@ export const usePanelStore = create<PanelStore>()(
         }));
 
         get().showToast('Panel event created', 'success');
+        // Sync to Supabase (background, non-blocking)
+        sync.upsertEvent(normalizedEvent).catch(() => {});
         return id;
       },
 
@@ -190,6 +193,9 @@ export const usePanelStore = create<PanelStore>()(
             event.id === id ? { ...event, ...updates } : event
           ),
         }));
+        // Sync to Supabase
+        const updated = get().panelEvents.find(e => e.id === id);
+        if (updated) sync.upsertEvent(updated).catch(() => {});
       },
 
       deleteEvent: (id) => {
@@ -201,6 +207,7 @@ export const usePanelStore = create<PanelStore>()(
           },
         }));
         get().showToast('Event deleted', 'success');
+        sync.deleteEventRemote(id).catch(() => {});
       },
 
       duplicateEvent: (id) => {
@@ -226,6 +233,7 @@ export const usePanelStore = create<PanelStore>()(
         }));
 
         get().showToast('Event duplicated', 'success');
+        sync.upsertEvent(normalizedEvent).catch(() => {});
         return newId;
       },
 
@@ -245,6 +253,8 @@ export const usePanelStore = create<PanelStore>()(
         }));
 
         get().showToast('Panelist added', 'success');
+        const ev = get().panelEvents.find(e => e.id === eventId);
+        if (ev) sync.upsertEvent(ev).catch(() => {});
       },
 
       updatePanelist: (eventId, panelistId, updates) => {
@@ -276,6 +286,8 @@ export const usePanelStore = create<PanelStore>()(
           ),
         }));
         get().showToast('Panelist removed', 'success');
+        const ev = get().panelEvents.find(e => e.id === eventId);
+        if (ev) sync.upsertEvent(ev).catch(() => {});
       },
 
       importPanelists: (eventId, panelists) => {
@@ -296,6 +308,8 @@ export const usePanelStore = create<PanelStore>()(
         }));
 
         get().showToast(`${panelists.length} panelists imported`, 'success');
+        const ev = get().panelEvents.find(e => e.id === eventId);
+        if (ev) sync.upsertEvent(ev).catch(() => {});
       },
 
       generateEmails: (eventId) => {
@@ -692,6 +706,7 @@ export const usePanelStore = create<PanelStore>()(
         }));
 
         get().showToast('Event checklist created', 'success');
+        sync.upsertChecklist(newChecklist).catch(() => {});
         return id;
       },
 
@@ -744,6 +759,7 @@ export const usePanelStore = create<PanelStore>()(
         }));
 
         get().showToast('Event panel tracker created', 'success');
+        sync.upsertTracker(newTracker).catch(() => {});
         return id;
       },
 

@@ -1,8 +1,8 @@
 import type { EmailTemplate } from '../types';
 
-// Email templates — stored as placeholder strings for production builds.
-// In local dev, these are loaded from ../../PANEL EMAIL TEMPLATES/ via Vite ?raw imports.
-// For deployed builds (Vercel), templates show as empty — the flyer generator doesn't need them.
+// Email templates — loaded at runtime from the server's /api/email-templates endpoint.
+// This fixes the production build issue where Vite ?raw imports returned empty strings.
+// Fallback: templates remain empty if server is unavailable (banner generator still works).
 const templateE22 = '';
 const templateE13 = '';
 const templateCalendarInvite = '';
@@ -204,3 +204,77 @@ export const EMAIL_TEMPLATES: EmailTemplate[] = [
     template: templateRandomReminder,
   },
 ];
+
+// ——————————————————————————————————————
+// Runtime template loading from server
+// ——————————————————————————————————————
+
+// Mapping from template code + name to expected HTML filename on disk
+const TEMPLATE_FILE_MAP: Record<string, string> = {
+  '01-e22-initial': 'E-22 Initial Invitation',
+  '02-e20-followup': 'E-20 Follow-up Reminder',
+  '03-e13-confirmation': 'E-13 Confirmation Thank You',
+  '03.5-calendar-invite': 'Calendar Invite',
+  '04-e10-promo': 'E-10 Promotional Materials',
+  '05-e10-questions': 'E-10 Questions',
+  '06-e6-boost': 'E-6 Boost Registrations',
+  '07-e5-help': 'E-5 Help Reach More',
+  '08-e4-reminder': 'E-4 3 Days Reminder',
+  '09-e2-tomorrow': 'E-2 Tomorrow Panel',
+  '10-e1-today': 'E-1 Today is the Day',
+  '11-eday-two-hours': 'E-Day Starting in 2 Hours',
+  '12-eday-starting-now': 'E-Day Starting Now',
+  '13-eplus1-thank-you': 'E+1 Thank You Recording',
+  '14-post-lead-report': 'POST Lead Report',
+  '15-post-panelists': 'POST Thank You Panelists',
+  '16-post-registrants': 'POST Thank You Registrants',
+  '17-random-reminder': 'Random Reminder',
+};
+
+let _templatesLoaded = false;
+
+/**
+ * Load email templates from the server at runtime.
+ * Call once on app init. Patches EMAIL_TEMPLATES array in-place.
+ */
+export async function loadEmailTemplatesFromServer(): Promise<number> {
+  if (_templatesLoaded) return 0;
+
+  try {
+    const res = await fetch('/api/email-templates');
+    if (!res.ok) return 0;
+
+    const data = await res.json();
+    const serverTemplates: Record<string, string> = data.templates || {};
+
+    let loaded = 0;
+
+    for (const template of EMAIL_TEMPLATES) {
+      const expectedName = TEMPLATE_FILE_MAP[template.id];
+      if (!expectedName) continue;
+
+      // Try exact match, then fuzzy match
+      let content = serverTemplates[expectedName];
+      if (!content) {
+        // Try partial match
+        const key = Object.keys(serverTemplates).find(k =>
+          k.toLowerCase().includes(template.code.toLowerCase()) &&
+          k.toLowerCase().includes(template.name.split(' ')[0].toLowerCase())
+        );
+        if (key) content = serverTemplates[key];
+      }
+
+      if (content && content.trim()) {
+        template.template = content;
+        loaded++;
+      }
+    }
+
+    _templatesLoaded = true;
+    console.log(`[emailTemplates] Loaded ${loaded}/${EMAIL_TEMPLATES.length} templates from server`);
+    return loaded;
+  } catch (err) {
+    console.warn('[emailTemplates] Server not available, using empty templates');
+    return 0;
+  }
+}

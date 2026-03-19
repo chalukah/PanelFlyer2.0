@@ -125,21 +125,60 @@ export function clearStoredToken(): void {
 
 // ---------- Drive helpers ----------
 
-// Wrapper that detects 403 (expired/invalid token) and throws a typed error
+// Auto-refresh: silently request a new token and update stored state
+async function refreshToken(): Promise<boolean> {
+  if (!tokenClient) return false;
+  return new Promise((resolve) => {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: (resp) => {
+        if (resp.error || !resp.access_token) { resolve(false); return; }
+        accessToken = resp.access_token;
+        try {
+          localStorage.setItem('gd_access_token', accessToken);
+          localStorage.setItem('gd_token_expiry', String(Date.now() + 3600 * 1000));
+        } catch { /* ignore */ }
+        resolve(true);
+      },
+    });
+    tokenClient!.requestAccessToken();
+  });
+}
+
+function isAuthError(err: unknown): boolean {
+  const e = err as { result?: { error?: { code?: number } }; status?: number; message?: string };
+  if (e?.status === 401 || e?.status === 403) return true;
+  if (e?.result?.error?.code === 401 || e?.result?.error?.code === 403) return true;
+  if (typeof e?.message === 'string' && e.message.includes('GOOGLE_AUTH_EXPIRED')) return true;
+  return false;
+}
+
+// Wrapper that detects 401/403 and auto-refreshes token once before failing
 async function gapiRequest(opts: { path: string; params?: Record<string, string> }): Promise<{ result: unknown }> {
-  try {
-    const resp = await gapi.client.request(opts);
-    // gapi may embed an error status in result
-    const r = resp.result as { error?: { code?: number; message?: string } };
-    if (r?.error?.code === 401 || r?.error?.code === 403) {
-      clearStoredToken();
-      throw new Error('GOOGLE_AUTH_EXPIRED');
+  const attempt = async () => {
+    try {
+      const resp = await gapi.client.request(opts);
+      const r = resp.result as { error?: { code?: number; message?: string } };
+      if (r?.error?.code === 401 || r?.error?.code === 403) {
+        throw { status: r.error.code, result: resp.result };
+      }
+      return resp;
+    } catch (err) {
+      if (isAuthError(err)) throw Object.assign(new Error('AUTH_EXPIRED'), { original: err });
+      throw err;
     }
-    return resp;
+  };
+
+  try {
+    return await attempt();
   } catch (err) {
-    // gapi throws an object like { result: { error: { code: 403 } }, status: 403 }
-    const e = err as { result?: { error?: { code?: number } }; status?: number };
-    if (e?.status === 401 || e?.status === 403 || e?.result?.error?.code === 401 || e?.result?.error?.code === 403) {
+    if (err instanceof Error && err.message === 'AUTH_EXPIRED') {
+      // Try to auto-refresh token
+      const refreshed = await refreshToken();
+      if (refreshed) {
+        return await attempt();
+      }
       clearStoredToken();
       throw new Error('GOOGLE_AUTH_EXPIRED');
     }
@@ -246,21 +285,35 @@ export async function readGoogleDoc(docId: string): Promise<string> {
 }
 
 export async function getFileAsDataUrl(fileId: string): Promise<string> {
-  const token = accessToken;
-  if (!token) throw new Error('Not signed in');
+  const doFetch = async () => {
+    const token = accessToken;
+    if (!token) throw new Error('Not signed in');
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (resp.status === 401 || resp.status === 403) throw new Error('AUTH_EXPIRED');
+    if (!resp.ok) throw new Error(`Failed to download file: ${resp.status}`);
+    const blob = await resp.blob();
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('Failed to read blob'));
+      reader.readAsDataURL(blob);
+    });
+  };
 
-  const resp = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    { headers: { Authorization: `Bearer ${token}` } },
-  );
-  if (!resp.ok) throw new Error(`Failed to download file: ${resp.status}`);
-  const blob = await resp.blob();
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error('Failed to read blob'));
-    reader.readAsDataURL(blob);
-  });
+  try {
+    return await doFetch();
+  } catch (err) {
+    if (err instanceof Error && err.message === 'AUTH_EXPIRED') {
+      const refreshed = await refreshToken();
+      if (refreshed) return await doFetch();
+      clearStoredToken();
+      throw new Error('GOOGLE_AUTH_EXPIRED');
+    }
+    throw err;
+  }
 }
 
 export function extractFolderIdFromUrl(url: string): string | null {

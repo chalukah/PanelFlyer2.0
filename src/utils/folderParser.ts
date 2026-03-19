@@ -13,6 +13,8 @@
  */
 
 import type { DriveFile } from './googleDrive';
+import { ParsedPanelistSchema } from './schemas';
+import { z } from 'zod';
 
 // ---------- types ----------
 
@@ -164,10 +166,28 @@ Respond ONLY with a JSON array, no other text. Example:
 
 If you cannot find any panelists, respond with: []`;
 
-  // Helper to parse AI response into panelists
+  // Helper to parse AI response into panelists (with Zod validation)
   const parseAIResponse = (text: string): ParsedPanelist[] | null => {
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) return null;
+    try {
+      const rawParsed = JSON.parse(jsonMatch[0]);
+      const validated = z.array(ParsedPanelistSchema).safeParse(rawParsed);
+      if (validated.success) {
+        const result = validated.data.map(p => ({
+          name: p.name || '',
+          firstName: p.firstName || (p.name || '').split(' ')[0],
+          title: p.title || '',
+          org: p.org || '',
+          email: p.email || '',
+          phone: p.phone || '',
+        }));
+        return result.length > 0 ? result : null;
+      }
+      // Fallback: manual coercion if Zod fails
+      console.warn('[folderParser] Zod validation warnings:', validated.error.issues.map(i => `${i.path.join('.')}: ${i.message}`));
+    } catch { /* fall through */ }
+    // Legacy fallback
     const parsed = JSON.parse(jsonMatch[0]) as ParsedPanelist[];
     const result = parsed.map(p => ({
       name: p.name || '',

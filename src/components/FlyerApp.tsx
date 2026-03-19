@@ -2,18 +2,12 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Download,
   Plus,
-  Trash2,
   RefreshCw,
   Image,
   Loader2,
-  PawPrint,
-  Scale,
-  Sparkles,
   FileImage,
   Wand2,
   X,
-  ChevronLeft,
-  ChevronRight,
   Check,
   FolderOpen,
   Unplug,
@@ -24,7 +18,6 @@ import {
   EyeOff,
   Zap,
   QrCode,
-  Upload,
   Moon,
   Sun,
 } from 'lucide-react';
@@ -59,395 +52,41 @@ import { checkGogStatus, gogListFolder, gogExportDoc, gogDownloadFile, gogExtrac
 import html2canvas from 'html2canvas';
 import JSZip from 'jszip';
 import { sendToClaudeAI, testClaudeConnection, sendToClaudeCLI, checkClaudeCLIStatus } from '../utils/claudeClient';
+import { checkAIStatus as checkUnifiedAIStatus, generateText, setApiKey, getApiKey as getStoredApiKey } from '../utils/aiService';
+import { parseSpreadsheet, csvRowsToPanelists } from '../utils/fileImport';
+import { generateEventPdf, renderBannersToPng, downloadPdf } from '../utils/pdfExport';
+import { validateExtraction } from '../utils/schemas';
+import { FileUp, FileText, Undo2, Redo2 } from 'lucide-react';
 
-// ============================================================
-// Types
-// ============================================================
-
-type QrCodes = { B1?: string; B2?: string; B3?: string; B4?: string; B5?: string };
-
-type PanelistFormData = {
-  id: string;
-  name: string;
-  firstName: string;
-  title: string;
-  org: string;
-  headshotUrl: string;
-  zoomUrl: string;
-  qrCodes: QrCodes;
-};
-
-// ============================================================
-// Vertical icon helper
-// ============================================================
-
-function VerticalIcon({ id, className }: { id: VerticalId; className?: string }) {
-  switch (id) {
-    case 'vet':
-      return <PawPrint className={className} />;
-    case 'thriving-dentist':
-      return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="24" height="24"><rect x="6" y="4" width="12" height="10" rx="3"/><path d="M8 14 L7 22"/><path d="M16 14 L17 22"/></svg>;
-    case 'dominate-law':
-      return <Scale className={className} />;
-    case 'aesthetics':
-      return <Sparkles className={className} />;
-  }
-}
-
-// ============================================================
-// Vertical emoji map
-// ============================================================
-
-const VERTICAL_EMOJI: Record<VerticalId, string> = {
-  vet: '🐾',
-  'thriving-dentist': '🦷',
-  'dominate-law': '⚖️',
-  aesthetics: '✨',
-};
-
-const BANNER_TYPE_LABELS: Record<BannerType, string> = {
-  B1: 'Intro',
-  B2: 'Panel 1',
-  B3: 'Panel 2',
-  B4: 'One More Day',
-  B5: 'Today',
-};
-
-type PanelistCount = 2 | 3 | 4;
-
-// ============================================================
-// Pink accent constant
-// ============================================================
-const PINK = '#FF90E8';
-const PINK_LIGHT = '#FFF0FB';
-const CREAM = '#F4F4F0';
-const DARK_BG = '#0f0f0f';
-const DARK_SURFACE = '#1a1a1a';
-const DARK_BORDER = '#333333';
-const WARM_BORDER = '#000000';
-
-// ============================================================
-// Headshot Upload (used in manual fallback)
-// ============================================================
-
-function HeadshotUpload({
-  url,
-  onChange,
-  name,
-}: {
-  url: string;
-  onChange: (url: string) => void;
-  name: string;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onChange(reader.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  return (
-    <div className="flex items-center gap-3">
-      <div
-        className="w-14 h-14 rounded-full overflow-hidden shrink-0 cursor-pointer transition-all duration-200 hover:scale-105 border-2 border-black"
-        onClick={() => inputRef.current?.click()}
-      >
-        {url ? (
-          <img src={url} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full bg-gray-50 flex items-center justify-center text-gray-400 text-lg font-bold">
-            {name[0] || '?'}
-          </div>
-        )}
-      </div>
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-      <button
-        onClick={() => inputRef.current?.click()}
-        className="text-xs hover:underline font-medium"
-        style={{ color: PINK }}
-      >
-        {url ? 'Change' : 'Upload'}
-      </button>
-      {url && (
-        <button onClick={() => onChange('')} className="text-xs text-red-500 hover:underline">
-          Remove
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ============================================================
-// Panelist Form Row (used in manual fallback)
-// ============================================================
-
-function PanelistRow({
-  panelist,
-  onChange,
-  onRemove,
-}: {
-  panelist: PanelistFormData;
-  onChange: (updated: PanelistFormData) => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="bg-white rounded-2xl p-4 border-[2px] border-black">
-      <div className="flex items-start gap-4">
-        <HeadshotUpload
-          url={panelist.headshotUrl}
-          onChange={(url) => onChange({ ...panelist, headshotUrl: url })}
-          name={panelist.name || panelist.firstName || '?'}
-        />
-        <div className="flex-1 grid grid-cols-2 gap-2.5">
-          <input
-            placeholder="Full Name"
-            value={panelist.name}
-            onChange={(e) => {
-              const name = e.target.value;
-              const firstName = name.split(' ')[0] || '';
-              onChange({ ...panelist, name, firstName });
-            }}
-            className="col-span-2 px-3 py-2 rounded-lg border-[2px] border-black bg-white text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:border-black focus:ring-1 focus:ring-black"
-          />
-          <input
-            placeholder="Title / Position"
-            value={panelist.title}
-            onChange={(e) => onChange({ ...panelist, title: e.target.value })}
-            className="px-3 py-2 rounded-lg border-[2px] border-black bg-white text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:border-black focus:ring-1 focus:ring-black"
-          />
-          <input
-            placeholder="Organization"
-            value={panelist.org}
-            onChange={(e) => onChange({ ...panelist, org: e.target.value })}
-            className="px-3 py-2 rounded-lg border-[2px] border-black bg-white text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:border-black focus:ring-1 focus:ring-black"
-          />
-        </div>
-        <button onClick={onRemove} className="p-2 text-red-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors shrink-0">
-          <Trash2 className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// Banner Thumbnail for Grid
-// ============================================================
-
-function BannerThumbnail({
-  banner,
-  onClick,
-  onDownload,
-  onToggleSelect,
-  selected,
-  visible,
-  delay,
-}: {
-  banner: GeneratedBanner;
-  onClick: () => void;
-  onDownload: () => void;
-  onToggleSelect: () => void;
-  selected: boolean;
-  visible: boolean;
-  delay: number;
-}) {
-  return (
-    <div
-      className="relative group cursor-pointer rounded-2xl overflow-hidden transition-all duration-500 hover:shadow-md"
-      style={{
-        width: 180,
-        height: 180,
-        opacity: visible ? 1 : 0,
-        transform: visible ? 'scale(1)' : 'scale(0.85)',
-        transitionDelay: `${delay}ms`,
-        border: selected ? `3px solid ${PINK}` : '2px solid black',
-      }}
-      onClick={onClick}
-    >
-      {/* Scaled banner via iframe */}
-      <iframe
-        srcDoc={banner.html}
-        style={{
-          width: 1080,
-          height: 1080,
-          transform: 'scale(0.1667)',
-          transformOrigin: 'top left',
-          pointerEvents: 'none',
-          border: 'none',
-        }}
-        sandbox="allow-same-origin allow-scripts"
-        title={banner.label}
-      />
-
-      {/* Hover overlay */}
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); onDownload(); }}
-            className="p-2 bg-white rounded-full hover:bg-gray-50 transition-colors shadow-sm"
-            title="Download this banner"
-          >
-            <Download className="w-4 h-4 text-black" />
-          </button>
-        </div>
-      </div>
-
-      {/* Selection checkbox */}
-      <div
-        className="absolute top-1.5 left-1.5 w-5 h-5 rounded-md flex items-center justify-center cursor-pointer transition-all border-2"
-        style={{
-          background: selected ? PINK : 'rgba(255,255,255,0.8)',
-          borderColor: selected ? PINK : 'rgba(0,0,0,0.3)',
-        }}
-        onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
-      >
-        {selected && <Check className="w-3 h-3 text-black" />}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// Full Banner Preview Modal
-// ============================================================
-
-function BannerModal({
-  banners,
-  currentIndex,
-  onClose,
-  onNavigate,
-  onDownload,
-  downloading,
-}: {
-  banners: GeneratedBanner[];
-  currentIndex: number;
-  onClose: () => void;
-  onNavigate: (idx: number) => void;
-  onDownload: (banner: GeneratedBanner) => void;
-  downloading: string | null;
-}) {
-  const banner = banners[currentIndex];
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-
-  useEffect(() => {
-    const computeScale = () => {
-      // Available space: 90vh for the banner (leave room for header), 90vw minus nav arrows
-      const maxH = window.innerHeight * 0.85 - 70; // 70px for header bar
-      const maxW = window.innerWidth * 0.85 - 80; // 80px for nav arrows
-      const s = Math.min(maxH / 1080, maxW / 1080, 1); // never scale up
-      setScale(s);
-    };
-    computeScale();
-    window.addEventListener('resize', computeScale);
-    return () => window.removeEventListener('resize', computeScale);
-  }, []);
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft' && currentIndex > 0) onNavigate(currentIndex - 1);
-      if (e.key === 'ArrowRight' && currentIndex < banners.length - 1) onNavigate(currentIndex + 1);
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [currentIndex, banners.length, onClose, onNavigate]);
-
-  if (!banner) return null;
-
-  const displaySize = Math.round(1080 * scale);
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
-      onClick={onClose}
-    >
-      <div
-        ref={containerRef}
-        className="relative bg-white rounded-2xl border-[2px] border-black flex flex-col"
-        style={{
-          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.15)',
-          maxWidth: '95vw',
-          maxHeight: '95vh',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 shrink-0">
-          <div>
-            <h3 className="text-lg font-bold text-black">{banner.label}</h3>
-            <p className="text-xs text-gray-400">{banner.panelistName} &middot; {banner.fileName}.png &middot; 1080x1080</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onDownload(banner)}
-              disabled={downloading === banner.id}
-              className="flex items-center gap-1.5 px-5 py-2.5 bg-black text-white text-xs rounded-full font-bold transition-all hover:opacity-80 disabled:opacity-50"
-            >
-              {downloading === banner.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-              Download PNG
-            </button>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
-          </div>
-        </div>
-
-        {/* Banner — scaled to fit viewport */}
-        <div className="flex items-center justify-center p-4 overflow-hidden">
-          <div
-            className="rounded-xl overflow-hidden border-[2px] border-black"
-            style={{
-              width: displaySize,
-              height: displaySize,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-            }}
-          >
-            <iframe
-              srcDoc={banner.html}
-              style={{
-                width: 1080,
-                height: 1080,
-                border: 'none',
-                transform: `scale(${scale})`,
-                transformOrigin: 'top left',
-              }}
-              sandbox="allow-same-origin allow-scripts"
-              title={banner.label}
-            />
-          </div>
-        </div>
-
-        {/* Navigation arrows */}
-        {currentIndex > 0 && (
-          <button
-            onClick={() => onNavigate(currentIndex - 1)}
-            className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-white rounded-full shadow-md hover:scale-110 transition-transform border-[2px] border-black"
-          >
-            <ChevronLeft className="w-6 h-6 text-black" />
-          </button>
-        )}
-        {currentIndex < banners.length - 1 && (
-          <button
-            onClick={() => onNavigate(currentIndex + 1)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white rounded-full shadow-md hover:scale-110 transition-transform border-[2px] border-black"
-          >
-            <ChevronRight className="w-6 h-6 text-black" />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
+// Extracted helper components
+import {
+  type QrCodes,
+  type PanelistFormData,
+  type PanelistCount,
+  PINK,
+  PINK_LIGHT,
+  CREAM,
+  DARK_BG,
+  DARK_SURFACE,
+  DARK_BORDER,
+  WARM_BORDER,
+  VERTICAL_COLORS,
+  BANNER_TYPE_LABELS,
+  injectAnimationStyles,
+} from './flyer/constants';
+import { VerticalIcon, VERTICAL_EMOJI } from './flyer/VerticalIcon';
+import { PanelistRow } from './flyer/PanelistRow';
+import { BannerThumbnail } from './flyer/BannerThumbnail';
+import { BannerModal } from './flyer/BannerModal';
 
 // ============================================================
 // Main FlyerApp
 // ============================================================
 
 export default function FlyerApp() {
+  // Inject CSS animations once
+  useEffect(() => { injectAnimationStyles(); }, []);
+
   // Dark mode
   const [darkMode, setDarkMode] = useState(() => {
     try { return localStorage.getItem('panel_dark_mode') === 'true'; } catch { return false; }
@@ -473,6 +112,7 @@ export default function FlyerApp() {
   const [selectedVertical, setSelectedVertical] = useState<VerticalId>('vet');
   const [userPickedVertical, setUserPickedVertical] = useState(false); // tracks if user manually chose a vertical
   const verticalConfig = getVerticalConfig(selectedVertical);
+  const vColors = VERTICAL_COLORS[selectedVertical];
 
   // Panelist count
   const [panelistCount, setPanelistCount] = useState<PanelistCount>(3);
@@ -514,6 +154,15 @@ export default function FlyerApp() {
   const [driveError, setDriveError] = useState('');
   const [driveImported, setDriveImported] = useState(false);
 
+  // Toast notification
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+    clearTimeout(toastTimer.current);
+    setToast({ message, type });
+    toastTimer.current = setTimeout(() => setToast(null), type === 'error' ? 6000 : 4000);
+  }, []);
+
   // UI toggles
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showEditOverrides, setShowEditOverrides] = useState(false);
@@ -547,23 +196,17 @@ export default function FlyerApp() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Check local Claude CLI status on app load
+  // Check AI status on app load (unified: CLI → SDK fallback)
   useEffect(() => {
     setClaudeChecking(true);
-    checkClaudeCLIStatus().then(status => {
-      setCliConnected(status.connected);
-      if (status.connected) {
-        setClaudeConnected(true);
-      } else {
-        // Fallback: check saved API key
-        const savedKey = localStorage.getItem('panel_flyer_claude_key');
-        if (savedKey) {
-          testClaudeConnection(savedKey, claudeModel).then(ok => setClaudeConnected(ok));
-        }
-      }
+    checkUnifiedAIStatus(true).then(status => {
+      setCliConnected(status.cliConnected);
+      setClaudeConnected(status.mode !== 'none');
+    }).catch(err => {
+      console.error('[AI status check failed]', err);
+    }).finally(() => {
       setClaudeChecking(false);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle vertical change (called by user click or auto-detect)
@@ -612,13 +255,22 @@ export default function FlyerApp() {
     if (panelists.length === 0) return;
     const incomplete = panelists.filter(p => !p.name.trim());
     if (incomplete.length > 0) {
-      // Still generate, but fill in defaults for empty names
       panelists.forEach((p, i) => {
         if (!p.name.trim()) {
           setPanelists(prev => prev.map((pp, idx) => idx === i ? { ...pp, name: `Panelist ${i + 1}`, firstName: 'Panelist' } : pp));
         }
       });
     }
+
+    // Warn about missing data (non-blocking)
+    const warnings: string[] = [];
+    const noHeadshot = panelists.filter(p => !p.headshotUrl);
+    const noTitle = panelists.filter(p => !p.title.trim());
+    const noQR = panelists.filter(p => Object.values(p.qrCodes).filter(Boolean).length === 0);
+    if (noHeadshot.length > 0) warnings.push(`${noHeadshot.length} missing headshot${noHeadshot.length > 1 ? 's' : ''}`);
+    if (noTitle.length > 0) warnings.push(`${noTitle.length} missing title${noTitle.length > 1 ? 's' : ''}`);
+    if (noQR.length > 0) warnings.push(`${noQR.length} missing QR codes`);
+    if (warnings.length > 0) showToast(`Generating with: ${warnings.join(', ')}`, 'warning');
 
     lastGenSnapshot.current = getDataSnapshot();
     setGenerating(true);
@@ -675,8 +327,8 @@ export default function FlyerApp() {
   // Track last-generated state to avoid unnecessary regeneration on blur
   const lastGenSnapshot = useRef('');
   const getDataSnapshot = useCallback(() => {
-    return JSON.stringify({ headerText, panelName, panelTopic, eventDate, eventTime, websiteUrl, panelists: panelists.map(p => ({ name: p.name, title: p.title, org: p.org })) });
-  }, [headerText, panelName, panelTopic, eventDate, eventTime, websiteUrl, panelists]);
+    return JSON.stringify({ headerText, panelName, panelTopic, panelSubtitle, eventDate, eventTime, websiteUrl, panelists: panelists.map(p => ({ name: p.name, title: p.title, org: p.org })) });
+  }, [headerText, panelName, panelTopic, panelSubtitle, eventDate, eventTime, websiteUrl, panelists]);
 
   const regenerateIfChanged = useCallback(() => {
     const snap = getDataSnapshot();
@@ -703,8 +355,35 @@ export default function FlyerApp() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [panelists.length, generating, generateAllBanners]);
 
-  // Render a banner to a canvas element using an iframe for proper CSS isolation
-  const renderBannerToCanvas = useCallback(async (banner: GeneratedBanner): Promise<HTMLCanvasElement> => {
+  // Server-side render: send HTML to Puppeteer, get back a perfect PNG
+  const renderBannerServerSide = useCallback(async (banner: GeneratedBanner): Promise<HTMLCanvasElement> => {
+    const resp = await fetch('http://localhost:3002/api/render-png', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ html: banner.html }),
+    });
+    if (!resp.ok) throw new Error(`Server render failed: ${resp.status}`);
+    const blob = await resp.blob();
+    const bitmapUrl = URL.createObjectURL(blob);
+
+    // Convert blob to canvas
+    const img = document.createElement('img');
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = bitmapUrl;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1080;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(bitmapUrl);
+    return canvas;
+  }, []);
+
+  // Client-side fallback: iframe + html2canvas (used when server unavailable)
+  const renderBannerClientSide = useCallback(async (banner: GeneratedBanner): Promise<HTMLCanvasElement> => {
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
     iframe.style.left = '-9999px';
@@ -726,17 +405,10 @@ export default function FlyerApp() {
       const checkReady = () => {
         const images = iframeDoc.querySelectorAll('img');
         const allLoaded = Array.from(images).every((img) => img.complete);
-        if (allLoaded) {
-          resolve();
-        } else {
-          setTimeout(checkReady, 100);
-        }
+        if (allLoaded) resolve(); else setTimeout(checkReady, 100);
       };
-      // Give fonts time to load, then check images
       setTimeout(checkReady, 500);
     });
-
-    // Additional wait for Google Fonts to render
     await new Promise((r) => setTimeout(r, 300));
 
     const posterEl = (iframeDoc.querySelector('.poster') || iframeDoc.querySelector('body > div')) as HTMLElement;
@@ -755,6 +427,16 @@ export default function FlyerApp() {
     document.body.removeChild(iframe);
     return canvas;
   }, []);
+
+  // Render a banner to canvas — tries Puppeteer server first, falls back to html2canvas
+  const renderBannerToCanvas = useCallback(async (banner: GeneratedBanner): Promise<HTMLCanvasElement> => {
+    try {
+      return await renderBannerServerSide(banner);
+    } catch {
+      console.warn('Server-side render unavailable, falling back to html2canvas');
+      return await renderBannerClientSide(banner);
+    }
+  }, [renderBannerServerSide, renderBannerClientSide]);
 
   // Download single banner as PNG + HTML in a zip
   const downloadBanner = useCallback(async (banner: GeneratedBanner) => {
@@ -793,9 +475,7 @@ ${banner.html}
       URL.revokeObjectURL(link.href);
     } catch (err) {
       console.error('Failed to export banner:', err);
-      // Show user-visible error
-      setDriveError('Download failed. Please try again.');
-      setTimeout(() => setDriveError(''), 3000);
+      showToast('Download failed — please try again', 'error');
     }
     setDownloading(null);
   }, [renderBannerToCanvas]);
@@ -874,8 +554,7 @@ ${banner.html}
       URL.revokeObjectURL(link.href);
     } catch (err) {
       console.error('Failed to create zip:', err);
-      setDriveError('ZIP creation failed. Please try again.');
-      setTimeout(() => setDriveError(''), 3000);
+      showToast('ZIP creation failed — please try again', 'error');
     }
     setDownloadingAll(false);
     setDownloadProgress(null);
@@ -1100,15 +779,32 @@ ${banner.html}
         return (p.firstName || '').replace(/^Dr\.?\s*/i, '').trim().toLowerCase();
       };
 
-      // Helper: download image as data URL (tries gog first)
-      const downloadImage = async (fileId: string): Promise<string> => {
-        if (useGog) {
+      // Helper: download image as data URL with retry (tries gog first, then Drive API)
+      const downloadImage = async (fileId: string, retries = 3): Promise<string> => {
+        for (let attempt = 1; attempt <= retries; attempt++) {
           try {
-            const result = await gogDownloadFile(fileId);
-            return result.dataUrl;
-          } catch { /* fall through */ }
+            let dataUrl: string;
+            if (useGog) {
+              try {
+                const result = await gogDownloadFile(fileId);
+                dataUrl = result.dataUrl;
+              } catch {
+                dataUrl = await getFileAsDataUrl(fileId);
+              }
+            } else {
+              dataUrl = await getFileAsDataUrl(fileId);
+            }
+            // Validate: must be a real data URL with actual content
+            if (dataUrl && dataUrl.startsWith('data:image/') && dataUrl.length > 200) {
+              return dataUrl;
+            }
+            throw new Error('Invalid image data');
+          } catch (err) {
+            if (attempt === retries) throw err;
+            await new Promise((r) => setTimeout(r, 500 * attempt)); // backoff
+          }
         }
-        return getFileAsDataUrl(fileId);
+        throw new Error('Download failed after retries');
       };
 
       for (const img of imageFiles) {
@@ -1299,6 +995,13 @@ ${banner.html}
       setDriveImported(true);
       setDriveStep('');
 
+      // Warn about missing data
+      const missingHeadshots = newPanelists.filter(p => !p.headshotUrl).map(p => p.name || 'Unknown');
+      const missingQR = newPanelists.filter(p => Object.values(p.qrCodes).filter(Boolean).length === 0).map(p => p.name || 'Unknown');
+      if (missingHeadshots.length > 0) showToast(`Missing headshots: ${missingHeadshots.join(', ')}`, 'warning');
+      else if (missingQR.length > 0) showToast(`Missing QR codes: ${missingQR.join(', ')}`, 'warning');
+      else showToast(`Imported ${newPanelists.length} panelists successfully`, 'success');
+
       // Trigger banner regeneration after state has settled
       setTimeout(() => {
         setImportGenToken((t) => t + 1);
@@ -1307,12 +1010,13 @@ ${banner.html}
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Import failed';
       if (msg === 'GOOGLE_AUTH_EXPIRED') {
-        // Token expired — clear state and prompt re-auth
         clearStoredToken();
         setDriveSignedIn(false);
         setDriveError('Google session expired. Please reconnect and try again.');
+        showToast('Google session expired — please reconnect', 'error');
       } else {
         setDriveError(msg);
+        showToast(`Import failed: ${msg}`, 'error');
       }
     } finally {
       setDriveLoading(false);
@@ -1342,31 +1046,24 @@ ${banner.html}
 
   // Claude settings handlers
   const handleSaveClaudeSettings = () => {
-    localStorage.setItem('panel_flyer_claude_key', claudeKey);
+    setApiKey(claudeKey); // Uses unified aiService (localStorage + Supabase if available)
     localStorage.setItem('panel_flyer_claude_model', claudeModel);
   };
 
   const handleCheckCLIConnection = async () => {
     setClaudeChecking(true);
-    const status = await checkClaudeCLIStatus();
-    setCliConnected(status.connected);
-    if (status.connected) {
-      setClaudeConnected(true);
-    }
+    const status = await checkUnifiedAIStatus(true);
+    setCliConnected(status.cliConnected);
+    setClaudeConnected(status.mode !== 'none');
     setClaudeChecking(false);
-    return status.connected;
+    return status.cliConnected;
   };
 
   const handleTestConnection = async () => {
-    // First try CLI
-    const cliOk = await handleCheckCLIConnection();
-    if (cliOk) return;
-
-    // Then try API key
-    if (!claudeKey) return;
     setClaudeTesting(true);
-    const ok = await testClaudeConnection(claudeKey, claudeModel);
-    setClaudeConnected(ok);
+    const status = await checkUnifiedAIStatus(true);
+    setCliConnected(status.cliConnected);
+    setClaudeConnected(status.mode !== 'none');
     setClaudeTesting(false);
   };
 
@@ -1375,14 +1072,7 @@ ${banner.html}
     setAiEnhancing(true);
     const enhancePrompt = `You are a marketing copywriter for professional industry panels. Improve this panel topic/title to be more compelling and engaging while keeping the same meaning. Return ONLY the improved title, nothing else.\n\nOriginal: ${panelTopic}`;
     try {
-      let result: string;
-      if (cliConnected) {
-        result = await sendToClaudeCLI(enhancePrompt);
-      } else if (claudeKey) {
-        result = await sendToClaudeAI(claudeKey, enhancePrompt, claudeModel);
-      } else {
-        throw new Error('No AI connection available');
-      }
+      const result = await generateText(enhancePrompt, { model: claudeModel });
       setPanelTopic(result.trim());
     } catch (err) {
       console.error('AI enhance failed:', err);
@@ -1391,8 +1081,83 @@ ${banner.html}
     }
   };
 
+  // ============================================================
+  // CSV/Excel Import
+  // ============================================================
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const [csvImporting, setCsvImporting] = useState(false);
+
+  const handleCsvImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvImporting(true);
+    try {
+      const { rows, warnings } = await parseSpreadsheet(file);
+      const imported = csvRowsToPanelists(rows);
+      const newPanelists: PanelistFormData[] = imported.map((p, i) => ({
+        id: crypto.randomUUID(),
+        name: p.fullName || p.firstName || `Panelist ${i + 1}`,
+        firstName: p.firstName || '',
+        title: p.title || '',
+        org: '',
+        headshotUrl: '',
+        zoomUrl: '',
+        qrCodes: {},
+      }));
+      setPanelists(newPanelists);
+      setDriveImported(true);
+      if (warnings.length > 0) {
+        showToast(`Imported ${rows.length} panelists (${warnings.length} warnings)`, 'warning');
+      } else {
+        showToast(`Imported ${rows.length} panelists from ${file.name}`, 'success');
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to import file', 'error');
+    } finally {
+      setCsvImporting(false);
+      if (csvInputRef.current) csvInputRef.current.value = '';
+    }
+  }, [showToast]);
+
+  // ============================================================
+  // PDF Export
+  // ============================================================
+  const [pdfExporting, setPdfExporting] = useState(false);
+
+  const handlePdfExport = useCallback(async () => {
+    if (banners.length === 0) return;
+    setPdfExporting(true);
+    try {
+      // Render banners to PNG via server
+      const htmlList = banners.slice(0, 20).map(b => ({
+        html: b.html,
+        label: `${b.panelistName} — ${BANNER_TYPE_LABELS[b.type] || b.type}`,
+      }));
+      const pngBanners = await renderBannersToPng(htmlList, (current, total) => {
+        setDownloadProgress({ current, total });
+      });
+
+      const blob = await generateEventPdf({
+        eventName: panelName || 'Panel Event',
+        eventDate: eventDate,
+        panelTopic,
+        panelSubtitle,
+        panelists: panelists.map(p => ({ name: p.name, title: p.title, org: p.org })),
+        banners: pngBanners,
+      });
+
+      downloadPdf(blob, `${panelName || 'event'}_packet.pdf`);
+      showToast('PDF exported successfully', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'PDF export failed', 'error');
+    } finally {
+      setPdfExporting(false);
+      setDownloadProgress(null);
+    }
+  }, [banners, panelName, eventDate, panelTopic, panelSubtitle, panelists, showToast]);
+
   // Input class helper
-  const inputClass = `w-full px-3 py-2.5 rounded-lg border-[2px] text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 transition-all`;
+  const inputClass = `w-full px-3 py-2.5 rounded-lg border-[2px] text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 transition-all dm-input`;
   const inputStyle: React.CSSProperties = { backgroundColor: inputBg, borderColor: inputBorder, color: textPrimary };
   const cardStyle: React.CSSProperties = { backgroundColor: surface, borderColor: border };
 
@@ -1405,9 +1170,9 @@ ${banner.html}
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark' : ''}`} style={{ backgroundColor: bg, color: textPrimary }}>
+    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark' : ''}`} style={{ backgroundColor: bg, color: textPrimary, '--input-bg': inputBg, '--input-border': inputBorder, '--input-text': textPrimary, '--v-accent': vColors.accent, '--v-accent-soft': vColors.accentSoft, '--v-c2': VERTICAL_COLORS['thriving-dentist'].accent, '--v-c3': VERTICAL_COLORS['dominate-law'].accent, '--v-c4': VERTICAL_COLORS['aesthetics'].accent } as React.CSSProperties}>
       {/* ===== TOP BAR ===== */}
-      <header className="sticky top-0 z-50 transition-colors duration-300" style={{ backgroundColor: surface, borderBottom: `2px solid ${border}` }}>
+      <header className="anim-fade-down sticky top-0 z-50 transition-colors duration-300" style={{ backgroundColor: surface, borderBottom: `2px solid ${border}` }}>
         <div className="max-w-[1600px] mx-auto px-8 py-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div>
@@ -1432,17 +1197,18 @@ ${banner.html}
               onClick={() => setShowSettings(true)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border-2 transition-all hover:scale-[1.02] ${
                 claudeConnected
-                  ? 'border-green-400 bg-green-50 text-green-700'
+                  ? darkMode ? 'border-green-500 bg-green-900/30 text-green-400' : 'border-green-400 bg-green-50 text-green-700'
                   : claudeChecking
-                    ? 'border-yellow-400 bg-yellow-50 text-yellow-700'
-                    : 'border-black bg-white text-black animate-pulse'
+                    ? darkMode ? 'border-yellow-500 bg-yellow-900/30 text-yellow-400' : 'border-yellow-400 bg-yellow-50 text-yellow-700'
+                    : darkMode ? 'border-gray-500 bg-gray-800 text-gray-300 animate-pulse' : 'border-black bg-white text-black animate-pulse'
               }`}
             >
               <div className={`w-2 h-2 rounded-full ${claudeConnected ? 'bg-green-500' : claudeChecking ? 'bg-yellow-400 animate-pulse' : 'bg-gray-400'}`} />
               {claudeConnected ? 'AI Connected' : claudeChecking ? 'AI Connecting...' : 'Connect AI'}
             </button>
             <div
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold bg-black text-white"
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300"
+              style={{ background: vColors.accent, color: '#fff' }}
             >
               <VerticalIcon id={selectedVertical} className="w-3.5 h-3.5" />
               {verticalConfig.name}
@@ -1461,42 +1227,46 @@ ${banner.html}
 
             {/* Section 1: Vertical Selector */}
             <div className="grid grid-cols-4 gap-3">
-              {VERTICALS.map((v) => {
+              {VERTICALS.map((v, idx) => {
                 const isSelected = selectedVertical === v.id;
+                const vc = VERTICAL_COLORS[v.id];
                 return (
                   <button
                     key={v.id}
                     onClick={() => handleVerticalChange(v.id, true)}
-                    className={`relative group flex flex-col items-center gap-2 px-4 py-5 rounded-2xl border-[2px] transition-all duration-200 ${
+                    className={`anim-fade-up anim-stagger-${idx + 1} relative group flex flex-col items-center gap-2 px-4 py-5 rounded-2xl border-[2px] transition-all duration-300 hover:translate-y-[-2px] ${
                       isSelected
-                        ? 'scale-[1.02] shadow-sm'
-                        : 'hover:shadow-sm opacity-70 hover:opacity-100'
+                        ? 'scale-[1.04] anim-border-glow'
+                        : 'hover:shadow-md opacity-70 hover:opacity-100'
                     }`}
-                    style={isSelected ? {
-                      borderColor: PINK,
-                      background: PINK_LIGHT,
-                      boxShadow: `0 0 0 3px ${PINK}20`,
-                    } : {
-                      borderColor: '#000',
-                      background: '#fff',
-                    }}
+                    style={{
+                      '--v-accent-soft': vc.accentSoft,
+                      borderColor: isSelected ? vc.accent : border,
+                      background: isSelected ? (darkMode ? vc.accentDark : vc.accentLight) : surface,
+                      boxShadow: isSelected ? `0 0 0 3px ${vc.accentSoft}` : 'none',
+                    } as React.CSSProperties}
                   >
-                    <span className="text-2xl">{VERTICAL_EMOJI[v.id]}</span>
+                    <span className={`text-2xl transition-transform duration-300 ${isSelected ? 'anim-float' : 'group-hover:scale-110'}`}>{VERTICAL_EMOJI[v.id]}</span>
                     <div className="text-center">
-                      <div className={`text-sm font-bold ${isSelected ? 'text-black' : 'text-gray-600'}`}>
+                      <div className="text-sm font-bold transition-colors duration-200" style={{ color: isSelected ? vc.accent : textSecondary }}>
                         {v.shortName}
                       </div>
                     </div>
+                    {isSelected && (
+                      <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ '--v-accent-soft': vc.accentSoft } as React.CSSProperties}>
+                        <div className="absolute inset-0 rounded-2xl anim-shimmer" />
+                      </div>
+                    )}
                   </button>
                 );
               })}
             </div>
 
             {/* Section 2: Panelist Count Selector */}
-            <div className="bg-white rounded-2xl p-5 border-[2px] border-black">
+            <div className="anim-fade-up rounded-2xl p-5 border-[2px] transition-all duration-300 hover:shadow-sm" style={{ ...cardStyle, animationDelay: '0.15s' }}>
               <div className="flex items-center gap-2 mb-3">
-                <Users className="w-4 h-4 text-gray-500" />
-                <h3 className="text-sm font-bold text-black">Panelist Count</h3>
+                <Users className="w-4 h-4" style={{ color: textSecondary }} />
+                <h3 className="text-sm font-bold" style={{ color: textPrimary }}>Panelist Count</h3>
               </div>
               <div className="flex gap-2">
                 {([2, 3, 4] as PanelistCount[]).map((count) => {
@@ -1505,11 +1275,11 @@ ${banner.html}
                     <button
                       key={count}
                       onClick={() => setPanelistCount(count)}
-                      className={`flex-1 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 border-[2px] ${
-                        isSelected
-                          ? 'bg-black text-white border-black'
-                          : 'bg-white text-black border-black hover:bg-gray-50'
-                      }`}
+                      className={`flex-1 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 border-[2px] hover:translate-y-[-1px] hover:shadow-sm ${isSelected ? 'scale-[1.03]' : ''}`}
+                      style={isSelected
+                        ? { background: vColors.accent, color: '#fff', borderColor: vColors.accent }
+                        : { background: surface, color: textPrimary, borderColor: border }
+                      }
                     >
                       {count} Panelists
                     </button>
@@ -1519,10 +1289,10 @@ ${banner.html}
             </div>
 
             {/* Section 3: Drive Folder Import */}
-            <div className="bg-white rounded-2xl p-5 border-[2px] border-black">
+            <div className="anim-fade-up rounded-2xl p-5 border-[2px] transition-all duration-300 hover:shadow-sm" style={{ ...cardStyle, animationDelay: '0.2s' }}>
               <div className="flex items-center gap-2 mb-3">
-                <FolderOpen className="w-4 h-4 text-gray-500" />
-                <h3 className="text-sm font-bold text-black">Google Drive Import</h3>
+                <FolderOpen className="w-4 h-4" style={{ color: textSecondary }} />
+                <h3 className="text-sm font-bold" style={{ color: textPrimary }}>Google Drive Import</h3>
                 {driveSignedIn && (
                   <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
                     <Check className="w-3 h-3" /> Connected
@@ -1551,8 +1321,8 @@ ${banner.html}
                     <button
                       onClick={handleDriveImportAndGenerate}
                       disabled={driveLoading || !driveUrl}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-black text-sm rounded-full font-bold transition-all hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{ background: PINK }}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-white text-sm rounded-full font-bold transition-all hover:scale-[1.01] disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ background: vColors.accent }}
                     >
                       {driveLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
                       {driveLoading ? 'Importing...' : 'Import & Generate'}
@@ -1561,7 +1331,8 @@ ${banner.html}
                       <button
                         onClick={handleAiEnhance}
                         disabled={aiEnhancing}
-                        className="flex items-center justify-center gap-1.5 px-4 py-3 text-xs rounded-full font-bold border-2 border-black transition-all hover:opacity-80 disabled:opacity-40"
+                        className="flex items-center justify-center gap-1.5 px-4 py-3 text-xs rounded-full font-bold border-2 transition-all hover:opacity-80 hover:translate-y-[-1px] disabled:opacity-40"
+                        style={{ borderColor: border, color: textPrimary }}
                         title="AI Enhance topic wording"
                       >
                         {aiEnhancing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
@@ -1574,15 +1345,15 @@ ${banner.html}
 
               {/* Loading steps */}
               {driveStep && (
-                <div className="mt-3 flex items-center gap-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />
-                  <span className="text-xs text-gray-500">{driveStep}</span>
+                <div className="mt-3 flex items-center gap-2 anim-fade-up">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: textSecondary }} />
+                  <span className="text-xs" style={{ color: textSecondary }}>{driveStep}</span>
                 </div>
               )}
 
               {/* Error */}
               {driveError && (
-                <div className="mt-3 text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">
+                <div className="mt-3 text-xs rounded-xl px-3 py-2 anim-fade-up" style={{ background: darkMode ? '#3b1c1c' : '#fef2f2', color: darkMode ? '#fca5a5' : '#dc2626' }}>
                   {driveError}
                   <button onClick={handleDriveConnect} className="ml-2 underline font-medium">
                     Reconnect
@@ -1590,70 +1361,85 @@ ${banner.html}
                 </div>
               )}
 
-              {/* Manual Entry fallback link */}
-              {!showManualEntry && (
+              {/* CSV/Excel upload + Manual entry links */}
+              <div className="mt-3 flex items-center gap-3">
                 <button
-                  onClick={() => setShowManualEntry(true)}
-                  className="mt-3 text-[11px] text-gray-400 hover:text-gray-600 underline transition-colors"
+                  onClick={() => csvInputRef.current?.click()}
+                  disabled={csvImporting}
+                  className="flex items-center gap-1.5 text-[11px] font-medium transition-colors hover:underline"
+                  style={{ color: vColors.accent }}
                 >
-                  Or enter details manually
+                  {csvImporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileUp className="w-3 h-3" />}
+                  Import from CSV/Excel
                 </button>
-              )}
+                <input ref={csvInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleCsvImport} />
+                <span className="text-[10px]" style={{ color: textSecondary }}>|</span>
+                {!showManualEntry && (
+                  <button
+                    onClick={() => setShowManualEntry(true)}
+                    className="text-[11px] underline transition-colors"
+                    style={{ color: textSecondary }}
+                  >
+                    Enter manually
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Detected Data section moved to right panel */}
 
             {/* Manual Entry (collapsed by default, secondary flow) */}
             {showManualEntry && !driveImported && (
-              <div className="bg-white rounded-2xl p-5 border-[2px] border-black space-y-4">
+              <div className="anim-fade-up rounded-2xl p-5 border-[2px] space-y-4" style={cardStyle}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <FileImage className="w-4 h-4 text-gray-500" />
-                    <h3 className="text-sm font-bold text-black">Manual Entry</h3>
+                    <FileImage className="w-4 h-4" style={{ color: textSecondary }} />
+                    <h3 className="text-sm font-bold" style={{ color: textPrimary }}>Manual Entry</h3>
                   </div>
                   <button
                     onClick={() => setShowManualEntry(false)}
-                    className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors"
+                    className="p-1.5 rounded-xl transition-colors"
+                    style={{ color: textSecondary }}
                   >
-                    <X className="w-4 h-4 text-gray-400" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Panel Name</label>
+                  <label className="text-xs font-medium mb-1 block" style={{ color: textSecondary }}>Panel Name</label>
                   <input value={panelName} onChange={(e) => setPanelName(e.target.value)} className={inputClass} />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Panel Topic (Main Title)</label>
+                  <label className="text-xs font-medium mb-1 block" style={{ color: textSecondary }}>Panel Topic (Main Title)</label>
                   <input value={panelTopic} onChange={(e) => setPanelTopic(e.target.value)} placeholder="e.g. Leading Through Change" className={inputClass} />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Subtitle (shown in gradient card on B1)</label>
+                  <label className="text-xs font-medium mb-1 block" style={{ color: textSecondary }}>Subtitle (shown in gradient card on B1)</label>
                   <input value={panelSubtitle} onChange={(e) => setPanelSubtitle(e.target.value)} placeholder="e.g. Practical Leadership for a Post-Pandemic Veterinary World" className={inputClass} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-medium text-gray-500 mb-1 block">Event Date</label>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: textSecondary }}>Event Date</label>
                     <input value={eventDate} onChange={(e) => setEventDate(e.target.value)} placeholder="SUNDAY, MARCH 23, 2026" className={inputClass} />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-gray-500 mb-1 block">Event Time</label>
+                    <label className="text-xs font-medium mb-1 block" style={{ color: textSecondary }}>Event Time</label>
                     <input value={eventTime} onChange={(e) => setEventTime(e.target.value)} className={inputClass} />
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Website URL</label>
+                  <label className="text-xs font-medium mb-1 block" style={{ color: textSecondary }}>Website URL</label>
                   <input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} className={inputClass} />
                 </div>
 
                 {/* Panelists */}
-                <div className="pt-2 border-t-[2px] border-black">
+                <div className="pt-2" style={{ borderTop: `2px solid ${border}` }}>
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-xs font-bold text-gray-700">Panelists ({panelists.length})</h4>
+                    <h4 className="text-xs font-bold" style={{ color: textPrimary }}>Panelists ({panelists.length})</h4>
                     <button
                       onClick={addPanelist}
                       className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full transition-colors hover:opacity-80"
-                      style={{ color: '#000', background: PINK }}
+                      style={{ color: '#fff', background: vColors.accent }}
                     >
                       <Plus className="w-3 h-3" /> Add
                     </button>
@@ -1662,7 +1448,8 @@ ${banner.html}
                   {panelists.length === 0 ? (
                     <button
                       onClick={addPanelist}
-                      className="w-full flex items-center justify-center gap-1.5 py-3 text-xs font-semibold rounded-2xl border-2 border-dashed border-gray-300 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors"
+                      className="w-full flex items-center justify-center gap-1.5 py-3 text-xs font-semibold rounded-2xl border-2 border-dashed transition-colors"
+                      style={{ borderColor: darkMode ? '#555' : '#d1d5db', color: textSecondary }}
                     >
                       <Plus className="w-3.5 h-3.5" /> Add First Panelist
                     </button>
@@ -1698,12 +1485,13 @@ ${banner.html}
 
             {/* Section 5: Download buttons (when banners exist) */}
             {banners.length > 0 && (
-              <div className="flex flex-col gap-2">
+              <div className="anim-fade-up flex flex-col gap-2" style={{ animationDelay: '0.25s' }}>
                 {selectedBannerIds.size > 0 && (
                   <button
                     onClick={downloadSelectedBanners}
                     disabled={downloadingAll}
-                    className="w-full flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-bold border-2 border-black text-white bg-black transition-all hover:opacity-80 hover:scale-[1.01] disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-bold transition-all hover:opacity-80 hover:scale-[1.01] hover:translate-y-[-1px] disabled:opacity-50"
+                    style={{ background: vColors.accent, color: '#fff' }}
                   >
                     {downloadingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                     {downloadingAll ? 'Creating ZIP...' : `Download Selected (${selectedBannerIds.size}) as ZIP`}
@@ -1712,13 +1500,24 @@ ${banner.html}
                 <button
                   onClick={downloadAllBanners}
                   disabled={downloadingAll}
-                  className="w-full flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-bold border-2 border-black text-black bg-white transition-all hover:opacity-80 hover:scale-[1.01] disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-bold border-2 transition-all hover:opacity-80 hover:scale-[1.01] disabled:opacity-50"
+                  style={{ borderColor: border, color: textPrimary, background: surface }}
                 >
                   {downloadingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   {downloadProgress
                     ? `Rendering ${downloadProgress.current}/${downloadProgress.total}...`
                     : downloadingAll ? 'Creating ZIP...' : `Download All (${filteredBanners.length}) as ZIP`
                   }
+                </button>
+                {/* PDF Export */}
+                <button
+                  onClick={handlePdfExport}
+                  disabled={pdfExporting}
+                  className="w-full flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-bold border-2 transition-all hover:opacity-80 disabled:opacity-50"
+                  style={{ borderColor: border, color: textPrimary, background: surface }}
+                >
+                  {pdfExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                  {pdfExporting ? 'Generating PDF...' : 'Export PDF Packet'}
                 </button>
               </div>
             )}
@@ -1729,17 +1528,17 @@ ${banner.html}
 
             {/* Detected Data — editable, auto-syncs to banners */}
             {driveImported && panelists.length > 0 && (
-              <div className="bg-white rounded-2xl p-5 border-[2px] border-black">
+              <div className="anim-fade-up rounded-2xl p-5 border-[2px] transition-all duration-300" style={cardStyle}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <Check className="w-4 h-4" style={{ color: PINK }} />
-                    <h3 className="text-sm font-bold text-black">Detected Data</h3>
-                    <span className="text-[10px] text-gray-400">Press Enter to sync changes</span>
+                    <Check className="w-4 h-4" style={{ color: vColors.accent }} />
+                    <h3 className="text-sm font-bold" style={{ color: textPrimary }}>Detected Data</h3>
+                    <span className="text-[10px]" style={{ color: textSecondary }}>Press Enter to sync changes</span>
                   </div>
                   <button
                     onClick={() => setShowEditOverrides(!showEditOverrides)}
                     className="flex items-center gap-1 text-[11px] font-medium hover:underline transition-colors"
-                    style={{ color: PINK }}
+                    style={{ color: vColors.accent }}
                   >
                     <Pencil className="w-3 h-3" />
                     {showEditOverrides ? 'Collapse' : 'Expand'}
@@ -1749,22 +1548,23 @@ ${banner.html}
                 {!showEditOverrides ? (
                   /* Compact view */
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
-                    <span className="text-gray-700"><span className="text-gray-400 font-medium">Header:</span> {headerText}</span>
-                    <span className="text-gray-700"><span className="text-gray-400 font-medium">Event:</span> {panelName}</span>
-                    <span className="text-gray-700"><span className="text-gray-400 font-medium">Topic:</span> {panelTopic}</span>
-                    <span className="text-gray-700"><span className="text-gray-400 font-medium">Date:</span> {eventDate}</span>
-                    <span className="text-gray-700"><span className="text-gray-400 font-medium">Time:</span> {eventTime}</span>
+                    <span style={{ color: textPrimary }}><span style={{ color: textSecondary }} className="font-medium">Header:</span> {headerText}</span>
+                    <span style={{ color: textPrimary }}><span style={{ color: textSecondary }} className="font-medium">Event:</span> {panelName}</span>
+                    <span style={{ color: textPrimary }}><span style={{ color: textSecondary }} className="font-medium">Topic:</span> {panelTopic}</span>
+                    {panelSubtitle && <span style={{ color: textPrimary }}><span style={{ color: textSecondary }} className="font-medium">Subtitle:</span> {panelSubtitle}</span>}
+                    <span style={{ color: textPrimary }}><span style={{ color: textSecondary }} className="font-medium">Date:</span> {eventDate}</span>
+                    <span style={{ color: textPrimary }}><span style={{ color: textSecondary }} className="font-medium">Time:</span> {eventTime}</span>
                     <div className="flex items-center gap-2">
                       {panelists.map((p) => (
                         <div key={p.id} className="flex items-center gap-1">
-                          <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-black">
+                          <div className="w-5 h-5 rounded-full overflow-hidden shrink-0" style={{ border: `1px solid ${border}` }}>
                             {p.headshotUrl ? (
                               <img src={p.headshotUrl} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="w-full h-full bg-gray-100 flex items-center justify-center text-[7px] font-bold text-gray-400">{p.name[0] || '?'}</div>
+                              <div className="w-full h-full flex items-center justify-center text-[7px] font-bold" style={{ background: darkMode ? '#333' : '#f3f4f6', color: textSecondary }}>{p.name[0] || '?'}</div>
                             )}
                           </div>
-                          <span className="text-gray-500 text-[11px]">{p.firstName || p.name.split(' ')[0]}</span>
+                          <span className="text-[11px]" style={{ color: textSecondary }}>{p.firstName || p.name.split(' ')[0]}</span>
                         </div>
                       ))}
                     </div>
@@ -1773,45 +1573,49 @@ ${banner.html}
                   /* Expanded edit view — horizontal layout */
                   <div className="space-y-3">
                     <div>
-                      <label className="text-[10px] font-medium text-gray-400 mb-0.5 block">Banner Header</label>
+                      <label className="text-[10px] font-medium mb-0.5 block" style={{ color: textSecondary }}>Banner Header</label>
                       <input value={headerText} onChange={(e) => setHeaderText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && regenerateIfChanged()} onBlur={() => regenerateIfChanged()} placeholder="e.g. Veterinary Business Institute Expert Panel" className={inputClass + ' !text-xs !font-bold'} />
                     </div>
                     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
                       <div>
-                        <label className="text-[10px] font-medium text-gray-400 mb-0.5 block">Panel Name</label>
+                        <label className="text-[10px] font-medium mb-0.5 block" style={{ color: textSecondary }}>Panel Name</label>
                         <input value={panelName} onChange={(e) => setPanelName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && regenerateIfChanged()} onBlur={() => regenerateIfChanged()} className={inputClass + ' !text-xs'} />
                       </div>
                       <div>
-                        <label className="text-[10px] font-medium text-gray-400 mb-0.5 block">Panel Topic</label>
+                        <label className="text-[10px] font-medium mb-0.5 block" style={{ color: textSecondary }}>Panel Topic</label>
                         <input value={panelTopic} onChange={(e) => setPanelTopic(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && regenerateIfChanged()} onBlur={() => regenerateIfChanged()} className={inputClass + ' !text-xs'} />
                       </div>
                       <div>
-                        <label className="text-[10px] font-medium text-gray-400 mb-0.5 block">Event Date</label>
+                        <label className="text-[10px] font-medium mb-0.5 block" style={{ color: textSecondary }}>Event Date</label>
                         <input value={eventDate} onChange={(e) => setEventDate(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && regenerateIfChanged()} onBlur={() => regenerateIfChanged()} className={inputClass + ' !text-xs'} />
                       </div>
                       <div>
-                        <label className="text-[10px] font-medium text-gray-400 mb-0.5 block">Event Time</label>
+                        <label className="text-[10px] font-medium mb-0.5 block" style={{ color: textSecondary }}>Event Time</label>
                         <input value={eventTime} onChange={(e) => setEventTime(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && regenerateIfChanged()} onBlur={() => regenerateIfChanged()} className={inputClass + ' !text-xs'} />
                       </div>
                     </div>
+                    <div>
+                      <label className="text-[10px] font-medium mb-0.5 block" style={{ color: textSecondary }}>Panel Subtitle</label>
+                      <input value={panelSubtitle} onChange={(e) => setPanelSubtitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && regenerateIfChanged()} onBlur={() => regenerateIfChanged()} placeholder="e.g. Practical Leadership for a Post-Pandemic Veterinary World" className={inputClass + ' !text-xs'} />
+                    </div>
                     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
                       <div>
-                        <label className="text-[10px] font-medium text-gray-400 mb-0.5 block">Website URL</label>
+                        <label className="text-[10px] font-medium mb-0.5 block" style={{ color: textSecondary }}>Website URL</label>
                         <input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && regenerateIfChanged()} onBlur={() => regenerateIfChanged()} className={inputClass + ' !text-xs'} />
                       </div>
                     </div>
 
                     {/* Per-panelist editing — horizontal cards */}
-                    <div className="pt-3 border-t border-gray-200">
-                      <h4 className="text-[10px] font-bold text-gray-400 mb-2">PANELISTS</h4>
+                    <div className="pt-3" style={{ borderTop: `1px solid ${darkMode ? '#333' : '#e5e7eb'}` }}>
+                      <h4 className="text-[10px] font-bold mb-2" style={{ color: textSecondary }}>PANELISTS</h4>
                       <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
                         {panelists.map((p, i) => (
-                          <div key={p.id} className="flex gap-2.5 items-start bg-gray-50 rounded-xl p-3">
-                            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border-[2px] border-black">
+                          <div key={p.id} className="flex gap-2.5 items-start rounded-xl p-3" style={{ background: darkMode ? '#252525' : '#f9fafb' }}>
+                            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border-[2px]" style={{ borderColor: border }}>
                               {p.headshotUrl ? (
                                 <img src={p.headshotUrl} className="w-full h-full object-cover" />
                               ) : (
-                                <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-400">{p.name[0] || '?'}</div>
+                                <div className="w-full h-full flex items-center justify-center text-xs font-bold" style={{ background: darkMode ? '#333' : '#e5e7eb', color: textSecondary }}>{p.name[0] || '?'}</div>
                               )}
                             </div>
                             <div className="flex-1 space-y-1">
@@ -1850,40 +1654,113 @@ ${banner.html}
             )}
 
             {banners.length === 0 ? (
-              <div className="bg-white rounded-2xl border-[2px] border-black p-16 text-center">
-                <div
-                  className="w-20 h-20 mx-auto rounded-3xl flex items-center justify-center mb-6"
-                  style={{ background: PINK_LIGHT }}
-                >
-                  <FileImage className="w-10 h-10" style={{ color: '#FF90E880' }} />
-                </div>
-                <h3 className="text-3xl font-black text-black mb-3">
-                  No Banners Yet
-                </h3>
-                <p className="text-sm text-[#374151] max-w-md mx-auto leading-relaxed">
-                  Select a vertical, choose panelist count, paste a Google Drive folder URL, and banners will appear here automatically.
-                </p>
-                <div className="mt-10 grid grid-cols-5 gap-3 max-w-lg mx-auto">
-                  {['B1 — Intro', 'B2 — Panel 1', 'B3 — Panel 2', 'B4 — 1 More Day', 'B5 — Today!'].map((label) => (
-                    <div
-                      key={label}
-                      className="aspect-square rounded-2xl flex items-center justify-center p-2 text-center bg-white border-[2px] border-black"
-                    >
-                      <span className="text-[9px] text-gray-400 font-semibold leading-tight">{label}</span>
+              <div className="anim-scale-in rounded-2xl border-[2px] p-16 text-center" style={cardStyle}>
+                {generating ? (
+                  /* ===== Google-flow loading state ===== */
+                  <div className="space-y-8">
+                    {/* Animated icon */}
+                    <div className="w-24 h-24 mx-auto rounded-3xl flex items-center justify-center relative" style={{ background: darkMode ? vColors.accentDark : vColors.accentLight }}>
+                      <FileImage className="w-12 h-12 anim-pulse" style={{ color: vColors.accent }} />
+                      <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: vColors.accent }}>
+                        <Loader2 className="w-3 h-3 animate-spin text-white" />
+                      </div>
                     </div>
-                  ))}
-                </div>
+
+                    {/* Title */}
+                    <div>
+                      <h3 className="text-2xl font-black mb-2" style={{ color: textPrimary }}>
+                        Generating Banners...
+                      </h3>
+                      <p className="text-sm" style={{ color: textSecondary }}>
+                        {Math.round(genProgress)}% complete
+                      </p>
+                    </div>
+
+                    {/* Google-style flowing dots */}
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="google-dot" style={{ background: VERTICAL_COLORS.vet.accent }} />
+                      <span className="google-dot" style={{ background: VERTICAL_COLORS['thriving-dentist'].accent }} />
+                      <span className="google-dot" style={{ background: VERTICAL_COLORS['dominate-law'].accent }} />
+                      <span className="google-dot" style={{ background: VERTICAL_COLORS.aesthetics.accent }} />
+                    </div>
+
+                    {/* Google-style progress bar */}
+                    <div className="max-w-xs mx-auto">
+                      <div className="google-flow-bar" style={{ background: darkMode ? '#333' : '#e5e7eb' }} />
+                    </div>
+
+                    {/* Pulsing placeholder grid */}
+                    <div className="mt-6 grid grid-cols-5 gap-3 max-w-lg mx-auto">
+                      {(['B1', 'B2', 'B3', 'B4', 'B5'] as const).map((type, i) => (
+                        <div
+                          key={type}
+                          className="aspect-square rounded-2xl placeholder-card-pulse border-[2px]"
+                          style={{
+                            ...cardStyle,
+                            animationDelay: `${i * 0.2}s`,
+                            background: darkMode
+                              ? `linear-gradient(135deg, ${DARK_SURFACE} 0%, ${vColors.accentDark} 100%)`
+                              : `linear-gradient(135deg, #fff 0%, ${vColors.accentLight} 100%)`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  /* ===== Idle empty state ===== */
+                  <div>
+                    <div
+                      className="w-20 h-20 mx-auto rounded-3xl flex items-center justify-center mb-6 transition-colors duration-300"
+                      style={{ background: darkMode ? vColors.accentDark : vColors.accentLight }}
+                    >
+                      <FileImage className="w-10 h-10" style={{ color: `${vColors.accent}80` }} />
+                    </div>
+                    <h3 className="text-3xl font-black mb-3" style={{ color: textPrimary }}>
+                      No Banners Yet
+                    </h3>
+                    <p className="text-sm max-w-md mx-auto leading-relaxed" style={{ color: textSecondary }}>
+                      Select a vertical, choose panelist count, paste a Google Drive folder URL, and banners will appear here automatically.
+                    </p>
+
+                    {/* Google-style 4 dots with vertical colors — subtle idle animation */}
+                    <div className="flex items-center justify-center gap-3 mt-8">
+                      {VERTICALS.map((v, i) => (
+                        <div
+                          key={v.id}
+                          className="w-3 h-3 rounded-full transition-all duration-300"
+                          style={{
+                            background: selectedVertical === v.id ? VERTICAL_COLORS[v.id].accent : (darkMode ? '#444' : '#d1d5db'),
+                            transform: selectedVertical === v.id ? 'scale(1.4)' : 'scale(1)',
+                            boxShadow: selectedVertical === v.id ? `0 0 8px ${VERTICAL_COLORS[v.id].accentSoft}` : 'none',
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="mt-10 grid grid-cols-5 gap-3 max-w-lg mx-auto">
+                      {(['B1', 'B2', 'B3', 'B4', 'B5'] as const).map((type) => (
+                        <div
+                          key={type}
+                          className="aspect-square rounded-2xl flex items-center justify-center p-2 text-center border-[2px] transition-colors duration-300"
+                          style={cardStyle}
+                        >
+                          <span className="text-[9px] font-semibold leading-tight" style={{ color: textSecondary }}>{BANNER_TYPE_LABELS[type]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border-[2px] border-black p-6">
+              <div className="anim-fade-up rounded-2xl border-[2px] p-6" style={cardStyle}>
                 {/* Header with filters */}
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <Image className="w-4 h-4 text-gray-500" />
-                    <h3 className="text-sm font-bold text-black">Banner Preview</h3>
+                    <Image className="w-4 h-4" style={{ color: textSecondary }} />
+                    <h3 className="text-sm font-bold" style={{ color: textPrimary }}>Banner Preview</h3>
                     <span
                       className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
-                      style={{ background: PINK_LIGHT, color: '#000' }}
+                      style={{ background: darkMode ? vColors.accentDark : vColors.accentLight, color: textPrimary }}
                     >
                       {filteredBanners.length} of {banners.length}
                     </span>
@@ -1891,7 +1768,8 @@ ${banner.html}
                   <div className="flex items-center gap-2">
                     <button
                       onClick={selectAllVisible}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-full border-2 border-black transition-all hover:bg-gray-50"
+                      className="text-xs font-semibold px-3 py-1.5 rounded-full border-2 transition-all"
+                      style={{ borderColor: border, color: textPrimary, background: surface }}
                     >
                       {filteredBanners.length > 0 && filteredBanners.every((b) => selectedBannerIds.has(b.id))
                         ? 'Deselect All'
@@ -1903,7 +1781,7 @@ ${banner.html}
                         onClick={downloadSelectedBanners}
                         disabled={downloadingAll}
                         className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-full text-white transition-all hover:opacity-80 disabled:opacity-50"
-                        style={{ background: PINK }}
+                        style={{ background: vColors.accent }}
                       >
                         {downloadingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                         Download Selected ({selectedBannerIds.size})
@@ -1921,13 +1799,14 @@ ${banner.html}
                 </div>
 
                 {/* Filters */}
-                <div className="flex items-center gap-4 flex-wrap mb-4 pb-4 border-b border-gray-100">
+                <div className="flex items-center gap-4 flex-wrap mb-4 pb-4" style={{ borderBottom: `1px solid ${darkMode ? '#333' : '#f3f4f6'}` }}>
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Panelist:</label>
+                    <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: textSecondary }}>Panelist:</label>
                     <select
                       value={selectedPanelistFilter}
                       onChange={(e) => { setSelectedPanelistFilter(e.target.value); setSelectedBannerIds(new Set()); }}
-                      className="border-[2px] border-black rounded-full px-3 py-1.5 bg-white text-xs focus:outline-none focus:border-black focus:ring-1 focus:ring-black"
+                      className="border-[2px] rounded-full px-3 py-1.5 text-xs focus:outline-none focus:ring-1"
+                      style={{ borderColor: border, background: surface, color: textPrimary }}
                     >
                       <option value="all">All ({banners.length})</option>
                       {uniquePanelistNames.map((name) => (
@@ -1936,25 +1815,25 @@ ${banner.html}
                     </select>
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Type:</label>
+                    <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: textSecondary }}>Type:</label>
                     <div className="flex gap-1">
                       {(['all', 'B1', 'B2', 'B3', 'B4', 'B5'] as const).map((type) => (
                         <button
                           key={type}
                           onClick={() => { setSelectedBannerType(type); setSelectedBannerIds(new Set()); }}
-                          className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all border-[2px] ${
-                            selectedBannerType === type
-                              ? 'bg-black text-white border-black'
-                              : 'bg-white text-black border-black hover:bg-gray-50'
-                          }`}
+                          className="px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all border-[2px]"
+                          style={selectedBannerType === type
+                            ? { background: textPrimary, color: surface, borderColor: textPrimary }
+                            : { background: surface, color: textPrimary, borderColor: border }
+                          }
                         >
-                          {type === 'all' ? 'All' : type}
+                          {type === 'all' ? 'All' : BANNER_TYPE_LABELS[type]}
                         </button>
                       ))}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Theme:</label>
+                    <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: textSecondary }}>Theme:</label>
                     <div className="flex gap-1.5 flex-wrap">
                       {BANNER_THEMES.map((theme) => (
                         <button
@@ -1966,12 +1845,14 @@ ${banner.html}
                               setTimeout(() => generateAllBanners(), 0);
                             }
                           }}
-                          className={`w-7 h-7 rounded-full border-2 transition-all flex-shrink-0 overflow-hidden ${
+                          className={`w-8 h-8 rounded-full border-2 transition-all flex-shrink-0 overflow-hidden ${
                             selectedTheme.id === theme.id
-                              ? 'border-black ring-2 ring-black ring-offset-1 scale-110'
-                              : 'border-gray-300 hover:border-gray-500 hover:scale-105'
+                              ? 'ring-2 ring-offset-1 scale-110'
+                              : 'hover:scale-105'
                           }`}
                           style={{
+                            borderColor: selectedTheme.id === theme.id ? vColors.accent : (darkMode ? '#555' : '#d1d5db'),
+                            ...(selectedTheme.id === theme.id ? { boxShadow: `0 0 0 2px ${vColors.accent}` } : {}),
                             background: `linear-gradient(135deg, ${theme.swatch[0]} 50%, ${theme.swatch[1]} 50%)`,
                           }}
                         />
@@ -1982,10 +1863,10 @@ ${banner.html}
 
                 {/* Generation progress bar */}
                 {generating && (
-                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden mb-4">
+                  <div className="w-full rounded-full h-2 overflow-hidden mb-4" style={{ background: darkMode ? '#333' : '#f3f4f6' }}>
                     <div
                       className="h-full rounded-full transition-all duration-300"
-                      style={{ width: `${genProgress}%`, background: PINK }}
+                      style={{ width: `${genProgress}%`, background: vColors.accent }}
                     />
                   </div>
                 )}
@@ -1998,9 +1879,10 @@ ${banner.html}
                     {(['B1', 'B2', 'B3', 'B4', 'B5'] as const).map((type) => (
                       <div
                         key={type}
-                        className="text-center text-[10px] font-bold uppercase tracking-wider text-gray-400 pb-2"
+                        className="text-center text-[10px] font-bold uppercase tracking-wider pb-2"
+                        style={{ color: textSecondary }}
                       >
-                        {type} {BANNER_TYPE_LABELS[type]}
+                        {BANNER_TYPE_LABELS[type]}
                       </div>
                     ))}
 
@@ -2013,17 +1895,17 @@ ${banner.html}
                           {/* Row header */}
                           <div className="flex flex-col items-center gap-1.5 pr-2">
                             <div className="flex items-center gap-2 w-full">
-                              <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border-2 border-black">
+                              <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border-2" style={{ borderColor: border }}>
                                 {panelist?.headshotUrl ? (
                                   <img src={panelist.headshotUrl} className="w-full h-full object-cover" />
                                 ) : (
-                                  <div className="w-full h-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400">
+                                  <div className="w-full h-full flex items-center justify-center text-[10px] font-bold" style={{ background: darkMode ? '#333' : '#f3f4f6', color: textSecondary }}>
                                     {panelistName[0] || '?'}
                                   </div>
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <div className="text-[11px] font-semibold text-black truncate max-w-[80px]">{panelistName}</div>
+                                <div className="text-[11px] font-semibold truncate max-w-[100px]" style={{ color: textPrimary }}>{panelistName}</div>
                               </div>
                             </div>
                             {/* QR status indicator */}
@@ -2064,11 +1946,87 @@ ${banner.html}
         </div>
       </main>
 
+      {/* ===== FOLDER STRUCTURE GUIDE ===== */}
+      <section className="max-w-[1600px] mx-auto px-8 mt-16">
+        <details className="rounded-2xl border-[2px] overflow-hidden" style={{ borderColor: border, backgroundColor: surface }}>
+          <summary className="px-6 py-4 cursor-pointer select-none flex items-center gap-3 font-bold text-sm" style={{ color: textPrimary }}>
+            <FolderOpen className="w-5 h-5" style={{ color: vColors.accent }} />
+            Google Drive Folder Structure Guide
+            <span className="text-xs font-normal ml-2" style={{ color: textSecondary }}>How to organize your event folders for best results</span>
+          </summary>
+          <div className="px-6 pb-6 pt-2 space-y-5 text-sm" style={{ color: textSecondary }}>
+            {/* Folder naming */}
+            <div>
+              <h4 className="font-bold mb-2" style={{ color: textPrimary }}>1. Folder Naming Convention</h4>
+              <p className="mb-2">Name your event folder using this format for automatic topic/subtitle detection:</p>
+              <code className="block px-4 py-2.5 rounded-lg text-xs" style={{ backgroundColor: darkMode ? '#252525' : '#f5f5f0', color: vColors.accent }}>
+                {'Date - Panel Name – Main Topic: Subtitle'}
+              </code>
+              <p className="text-xs mt-2" style={{ color: textSecondary }}>
+                Examples: <em>"15th Jan - Veterinary Ownership &amp; Leadership Panel – Leading Through Change: Practical Leadership for a Post-Pandemic Veterinary World"</em>
+              </p>
+            </div>
+
+            {/* Folder structure */}
+            <div>
+              <h4 className="font-bold mb-2" style={{ color: textPrimary }}>2. Required Folder Structure</h4>
+              <pre className="px-4 py-3 rounded-lg text-xs leading-relaxed overflow-x-auto" style={{ backgroundColor: darkMode ? '#252525' : '#f5f5f0', color: textPrimary }}>{`Event Folder/
+├── Partner Details                    (Google Doc - panelist info, use TABS per panelist)
+├── [Name] - Promotional Materials     (Google Doc per panelist - bios, credentials)
+├── Headshots/                         (Folder - one image per panelist)
+│   ├── jessica_moore_jones.jpg
+│   ├── john_smith.png
+│   └── ...
+├── QR Codes/                          (Folder - auto-mapped to B1–B5 banners)
+│   ├── Dr. Jessica Moore-Jones/
+│   │   ├── QR_..._N1.png             (→ B1 Intro)
+│   │   ├── QR_..._N2.png             (→ B2 Panel 1)
+│   │   ├── QR_..._N3.png             (→ B3 Panel 2)
+│   │   ├── QR_..._N4.png             (→ B4 One More Day)
+│   │   └── QR_..._N5.png             (→ B5 Happening Today)
+│   ├── John Smith/
+│   │   └── ... (5 QR images)
+│   └── ...
+├── LOgos/                             (Folder - optional)
+└── Event Slides                       (Google Slides - optional)`}</pre>
+            </div>
+
+            {/* Key rules */}
+            <div>
+              <h4 className="font-bold mb-2" style={{ color: textPrimary }}>3. Key Rules</h4>
+              <ul className="space-y-1.5 text-xs list-none">
+                <li className="flex gap-2"><span style={{ color: vColors.accent }}>&#9679;</span> <strong>Partner Details doc:</strong> Use Google Doc TABS — one tab per panelist with their name, title, and organization</li>
+                <li className="flex gap-2"><span style={{ color: vColors.accent }}>&#9679;</span> <strong>Headshot filenames:</strong> Include the panelist's last name (e.g., <code>moore_jones.jpg</code>) for auto-matching</li>
+                <li className="flex gap-2"><span style={{ color: vColors.accent }}>&#9679;</span> <strong>QR code filenames:</strong> Must end with a number 1–5 before the extension (e.g., <code>QR_...N1.png</code> → B1)</li>
+                <li className="flex gap-2"><span style={{ color: vColors.accent }}>&#9679;</span> <strong>QR subfolder names:</strong> Match panelist names (e.g., <code>Dr. Dani McVety/</code>)</li>
+                <li className="flex gap-2"><span style={{ color: vColors.accent }}>&#9679;</span> <strong>No QR folder?</strong> Banners will show a dashed placeholder — QR codes are optional</li>
+                <li className="flex gap-2"><span style={{ color: vColors.accent }}>&#9679;</span> <strong>Promotional Materials:</strong> Name as <code>[Panelist Name] - Promotional Materials</code> for auto-detection</li>
+              </ul>
+            </div>
+
+            {/* What gets auto-detected */}
+            <div>
+              <h4 className="font-bold mb-2" style={{ color: textPrimary }}>4. What Gets Auto-Detected</h4>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                <div className="flex gap-2"><span className="text-green-500">&#10003;</span> Panel name &amp; topic from folder name</div>
+                <div className="flex gap-2"><span className="text-green-500">&#10003;</span> Subtitle from folder name (after <code>:</code>)</div>
+                <div className="flex gap-2"><span className="text-green-500">&#10003;</span> Event date &amp; time from docs</div>
+                <div className="flex gap-2"><span className="text-green-500">&#10003;</span> Panelist names, titles, orgs from doc tabs</div>
+                <div className="flex gap-2"><span className="text-green-500">&#10003;</span> Headshots matched by name</div>
+                <div className="flex gap-2"><span className="text-green-500">&#10003;</span> QR codes mapped to B1–B5 banners</div>
+                <div className="flex gap-2"><span className="text-green-500">&#10003;</span> Zoom registration URL</div>
+                <div className="flex gap-2"><span className="text-green-500">&#10003;</span> Vertical auto-detection (VET/TD/DL/BOA)</div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </section>
+
       {/* ===== FOOTER ===== */}
-      <footer className="mt-16 py-8 border-t-[2px] border-black text-center">
-        <p className="text-xs text-gray-400">
+      <footer className="mt-8 py-8 border-t-[2px] text-center" style={{ borderColor: border }}>
+        <p className="text-xs" style={{ color: textSecondary }}>
           Panel Flyer Studio &mdash; Built for{' '}
-          <span style={{ color: PINK }}>{verticalConfig.name}</span>
+          <span style={{ color: vColors.accent }}>{verticalConfig.name}</span>
           {' '}&amp; all verticals
         </p>
       </footer>
@@ -2076,39 +2034,37 @@ ${banner.html}
       {/* ===== SETTINGS MODAL ===== */}
       {showSettings && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setShowSettings(false)}>
-          <div className="bg-white rounded-2xl border-[2px] border-black p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="anim-scale-in rounded-2xl border-[2px] p-6 w-full max-w-md mx-4" style={cardStyle} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-black text-black">Connect AI</h2>
-              <button onClick={() => setShowSettings(false)} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors">
-                <X className="w-4 h-4 text-gray-400" />
+              <h2 className="text-lg font-black" style={{ color: textPrimary }}>Connect AI</h2>
+              <button onClick={() => setShowSettings(false)} className="p-1.5 rounded-xl transition-colors" style={{ color: textSecondary }}>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Connection status banner */}
             {claudeConnected && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200 mb-4">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-4" style={{ background: darkMode ? 'rgba(34,197,94,0.1)' : '#f0fdf4', border: `1px solid ${darkMode ? '#22c55e50' : '#bbf7d0'}` }}>
                 <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                <span className="text-xs font-semibold text-green-700">
+                <span className="text-xs font-semibold" style={{ color: darkMode ? '#4ade80' : '#15803d' }}>
                   {cliConnected ? 'Connected via Claude Code CLI' : 'Connected via API Key'}
                 </span>
               </div>
             )}
 
             {/* Tabs */}
-            <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1">
+            <div className="flex gap-1 mb-4 rounded-lg p-1" style={{ background: darkMode ? '#252525' : '#f3f4f6' }}>
               <button
                 onClick={() => setSettingsTab('cli')}
-                className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${
-                  settingsTab === 'cli' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
+                className="flex-1 text-xs font-bold py-2 rounded-md transition-all"
+                style={settingsTab === 'cli' ? { background: surface, color: textPrimary, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' } : { color: textSecondary }}
               >
                 Claude Code (Recommended)
               </button>
               <button
                 onClick={() => setSettingsTab('apikey')}
-                className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${
-                  settingsTab === 'apikey' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
+                className="flex-1 text-xs font-bold py-2 rounded-md transition-all"
+                style={settingsTab === 'apikey' ? { background: surface, color: textPrimary, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' } : { color: textSecondary }}
               >
                 API Key
               </button>
@@ -2117,28 +2073,28 @@ ${banner.html}
             {/* CLI Tab */}
             {settingsTab === 'cli' && (
               <div className="space-y-4">
-                <p className="text-xs text-gray-500 leading-relaxed">
+                <p className="text-xs leading-relaxed" style={{ color: textSecondary }}>
                   Use your Claude Code subscription — no API key needed. Make sure Claude Code is installed on your computer.
                 </p>
 
-                <div className="space-y-3 bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <div className="space-y-3 rounded-xl p-4" style={{ background: darkMode ? '#252525' : '#f9fafb', border: `1px solid ${darkMode ? '#444' : '#e5e7eb'}` }}>
                   <div className="flex items-start gap-3">
-                    <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">1</div>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5" style={{ background: vColors.accent, color: '#fff' }}>1</div>
                     <div>
-                      <p className="text-xs font-semibold text-gray-700">Install Claude Code</p>
-                      <code className="text-[10px] bg-gray-200 px-1.5 py-0.5 rounded text-gray-600 mt-1 block">npm install -g @anthropic-ai/claude-code</code>
+                      <p className="text-xs font-semibold" style={{ color: textPrimary }}>Install Claude Code</p>
+                      <code className="text-[10px] px-1.5 py-0.5 rounded mt-1 block" style={{ background: darkMode ? '#333' : '#e5e7eb', color: textSecondary }}>npm install -g @anthropic-ai/claude-code</code>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">2</div>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5" style={{ background: vColors.accent, color: '#fff' }}>2</div>
                     <div>
-                      <p className="text-xs font-semibold text-gray-700">Run <code className="bg-gray-200 px-1 rounded text-[10px]">claude</code> in your terminal and complete login</p>
+                      <p className="text-xs font-semibold" style={{ color: textPrimary }}>Run <code className="px-1 rounded text-[10px]" style={{ background: darkMode ? '#333' : '#e5e7eb' }}>claude</code> in your terminal and complete login</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <div className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">3</div>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5" style={{ background: vColors.accent, color: '#fff' }}>3</div>
                     <div>
-                      <p className="text-xs font-semibold text-gray-700">Click "Check Connection" below to verify</p>
+                      <p className="text-xs font-semibold" style={{ color: textPrimary }}>Click "Check Connection" below to verify</p>
                     </div>
                   </div>
                 </div>
@@ -2146,7 +2102,7 @@ ${banner.html}
                 {/* CLI status */}
                 <div className="flex items-center gap-2">
                   <div className={`w-2.5 h-2.5 rounded-full ${cliConnected ? 'bg-green-500' : claudeChecking ? 'bg-yellow-400 animate-pulse' : 'bg-red-400'}`} />
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs" style={{ color: textSecondary }}>
                     {cliConnected ? 'Claude CLI connected and authenticated' : claudeChecking ? 'Checking...' : 'Not connected'}
                   </span>
                 </div>
@@ -2154,7 +2110,8 @@ ${banner.html}
                 <button
                   onClick={handleCheckCLIConnection}
                   disabled={claudeChecking}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold border-2 border-black transition-all hover:opacity-80 disabled:opacity-40"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold border-2 transition-all hover:opacity-80 disabled:opacity-40"
+                  style={{ borderColor: border, color: textPrimary }}
                 >
                   {claudeChecking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                   Check Connection
@@ -2165,13 +2122,13 @@ ${banner.html}
             {/* API Key Tab */}
             {settingsTab === 'apikey' && (
               <div className="space-y-4">
-                <p className="text-xs text-gray-500 leading-relaxed">
+                <p className="text-xs leading-relaxed" style={{ color: textSecondary }}>
                   Connect your Anthropic API key as an alternative. Your key is stored locally in this browser only.
                 </p>
 
                 {/* API Key */}
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Anthropic API Key</label>
+                  <label className="text-xs font-medium mb-1 block" style={{ color: textSecondary }}>Anthropic API Key</label>
                   <div className="relative">
                     <input
                       type={showKey ? 'text' : 'password'}
@@ -2182,7 +2139,8 @@ ${banner.html}
                     />
                     <button
                       onClick={() => setShowKey(!showKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                      style={{ color: textSecondary }}
                     >
                       {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -2191,7 +2149,7 @@ ${banner.html}
 
                 {/* Model selector */}
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Model</label>
+                  <label className="text-xs font-medium mb-1 block" style={{ color: textSecondary }}>Model</label>
                   <select
                     value={claudeModel}
                     onChange={(e) => setClaudeModel(e.target.value)}
@@ -2206,7 +2164,7 @@ ${banner.html}
                 {/* Connection status */}
                 <div className="flex items-center gap-2">
                   <div className={`w-2.5 h-2.5 rounded-full ${claudeConnected && !cliConnected ? 'bg-green-500' : claudeKey ? 'bg-red-400' : 'bg-gray-300'}`} />
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs" style={{ color: textSecondary }}>
                     {claudeConnected && !cliConnected ? 'Connected via API key' : claudeKey ? 'Not verified' : 'No key set'}
                   </span>
                 </div>
@@ -2222,7 +2180,8 @@ ${banner.html}
                       setClaudeTesting(false);
                     }}
                     disabled={!claudeKey || claudeTesting}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold border-2 border-black transition-all hover:opacity-80 disabled:opacity-40"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold border-2 transition-all hover:opacity-80 disabled:opacity-40"
+                    style={{ borderColor: border, color: textPrimary }}
                   >
                     {claudeTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                     Test Connection
@@ -2258,7 +2217,26 @@ ${banner.html}
           onNavigate={setModalBannerIndex}
           onDownload={downloadBanner}
           downloading={downloading}
+          darkMode={darkMode}
         />
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-[9999]">
+          <div className={`anim-fade-up flex items-center gap-3 px-4 py-3 rounded-2xl border max-w-md shadow-lg ${
+            toast.type === 'error'
+              ? darkMode ? 'bg-red-900/30 text-red-300 border-red-800' : 'bg-red-50 text-red-800 border-red-200'
+              : toast.type === 'warning'
+                ? darkMode ? 'bg-yellow-900/30 text-yellow-300 border-yellow-800' : 'bg-yellow-50 text-yellow-800 border-yellow-200'
+                : darkMode ? 'bg-green-900/30 text-green-300 border-green-800' : 'bg-green-50 text-green-800 border-green-200'
+          }`}>
+            <p className="flex-1 text-sm font-medium">{toast.message}</p>
+            <button onClick={() => setToast(null)} className="p-1 hover:bg-black/10 rounded-full">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       )}
 
     </div>

@@ -16,6 +16,21 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/api/render-png': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/render-batch': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/email-templates': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 })
