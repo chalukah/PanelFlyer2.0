@@ -31,31 +31,42 @@ async function getBrowser(): Promise<puppeteer.Browser> {
 // ——————————————————————————————————————
 app.post('/api/render-png', async (req, res) => {
   try {
-    const { html } = req.body;
+    const { html, format = 'jpeg', quality = 80 } = req.body;
     if (!html) return res.status(400).json({ error: 'html field required' });
 
     const browser = await getBrowser();
     const page = await browser.newPage();
     await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 1 });
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
-    // Wait for all images (data URLs load instantly, but Google Fonts need network)
+    // Wait for all images to load (with a 10s max timeout)
     await page.evaluate(() => {
-      return Promise.all(
-        Array.from(document.querySelectorAll('img')).map((img) =>
-          img.complete ? Promise.resolve() : new Promise((r) => { img.onload = r; img.onerror = r; })
-        )
-      );
+      return Promise.race([
+        Promise.all(
+          Array.from(document.querySelectorAll('img')).map((img) =>
+            img.complete ? Promise.resolve() : new Promise((r) => { img.onload = r; img.onerror = r; })
+          )
+        ),
+        new Promise((r) => setTimeout(r, 10000)),
+      ]);
     });
 
-    // Small extra wait for fonts
-    await new Promise((r) => setTimeout(r, 500));
+    // Wait for fonts + background images to render
+    await new Promise((r) => setTimeout(r, 1000));
 
-    const pngBuffer = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 1080, height: 1080 } });
+    const screenshotOpts: any = { clip: { x: 0, y: 0, width: 1080, height: 1080 } };
+    if (format === 'jpeg') {
+      screenshotOpts.type = 'jpeg';
+      screenshotOpts.quality = Math.min(100, Math.max(1, quality));
+    } else {
+      screenshotOpts.type = 'png';
+    }
+
+    const buffer = await page.screenshot(screenshotOpts);
     await page.close();
 
-    res.set('Content-Type', 'image/png');
-    res.send(pngBuffer);
+    res.set('Content-Type', format === 'jpeg' ? 'image/jpeg' : 'image/png');
+    res.send(buffer);
   } catch (err) {
     console.error('render-png error:', err);
     res.status(500).json({ error: err instanceof Error ? err.message : 'Render failed' });

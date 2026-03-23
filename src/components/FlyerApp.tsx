@@ -49,14 +49,14 @@ import {
   extractEventDetails,
 } from '../utils/folderParser';
 import { checkGogStatus, gogListFolder, gogExportDoc, gogDownloadFile, gogExtractFolder } from '../utils/gogClient';
-import html2canvas from 'html2canvas';
+
 import JSZip from 'jszip';
 import { sendToClaudeAI, testClaudeConnection, sendToClaudeCLI, checkClaudeCLIStatus } from '../utils/claudeClient';
 import { checkAIStatus as checkUnifiedAIStatus, generateText, setApiKey, getApiKey as getStoredApiKey } from '../utils/aiService';
 import { parseSpreadsheet, csvRowsToPanelists } from '../utils/fileImport';
-import { generateEventPdf, renderBannersToPng, downloadPdf } from '../utils/pdfExport';
+
 import { validateExtraction } from '../utils/schemas';
-import { FileUp, FileText, Undo2, Redo2 } from 'lucide-react';
+import { FileUp, Undo2, Redo2 } from 'lucide-react';
 
 // Extracted helper components
 import {
@@ -355,130 +355,34 @@ export default function FlyerApp() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [panelists.length, generating, generateAllBanners]);
 
-  // Server-side render: send HTML to Puppeteer, get back a perfect PNG
-  const renderBannerServerSide = useCallback(async (banner: GeneratedBanner): Promise<HTMLCanvasElement> => {
+  // Render a banner to image blob via Puppeteer server (pixel-perfect)
+  const renderBannerToBlob = useCallback(async (banner: GeneratedBanner): Promise<Blob> => {
     const resp = await fetch('http://localhost:3002/api/render-png', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ html: banner.html }),
+      body: JSON.stringify({ html: banner.html, format: 'jpeg', quality: 80 }),
     });
-    if (!resp.ok) throw new Error(`Server render failed: ${resp.status}`);
-    const blob = await resp.blob();
-    const bitmapUrl = URL.createObjectURL(blob);
-
-    // Convert blob to canvas
-    const img = document.createElement('img');
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = reject;
-      img.src = bitmapUrl;
-    });
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080;
-    canvas.height = 1080;
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(img, 0, 0);
-    URL.revokeObjectURL(bitmapUrl);
-    return canvas;
+    if (!resp.ok) throw new Error(`Render server error: ${resp.status}`);
+    return await resp.blob();
   }, []);
 
-  // Client-side fallback: iframe + html2canvas (used when server unavailable)
-  const renderBannerClientSide = useCallback(async (banner: GeneratedBanner): Promise<HTMLCanvasElement> => {
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.left = '-9999px';
-    iframe.style.top = '0';
-    iframe.style.width = '1080px';
-    iframe.style.height = '1080px';
-    iframe.style.border = 'none';
-    document.body.appendChild(iframe);
-
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!iframeDoc) throw new Error('Could not access iframe document');
-
-    iframeDoc.open();
-    iframeDoc.write(banner.html);
-    iframeDoc.close();
-
-    // Wait for fonts and images to load
-    await new Promise<void>((resolve) => {
-      const checkReady = () => {
-        const images = iframeDoc.querySelectorAll('img');
-        const allLoaded = Array.from(images).every((img) => img.complete);
-        if (allLoaded) resolve(); else setTimeout(checkReady, 100);
-      };
-      setTimeout(checkReady, 500);
-    });
-    await new Promise((r) => setTimeout(r, 300));
-
-    const posterEl = (iframeDoc.querySelector('.poster') || iframeDoc.querySelector('body > div')) as HTMLElement;
-    if (!posterEl) throw new Error('Could not find .poster element');
-
-    const canvas = await html2canvas(posterEl, {
-      width: 1080,
-      height: 1080,
-      scale: 1,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: null,
-      foreignObjectRendering: false,
-    });
-
-    document.body.removeChild(iframe);
-    return canvas;
-  }, []);
-
-  // Render a banner to canvas — tries Puppeteer server first, falls back to html2canvas
-  const renderBannerToCanvas = useCallback(async (banner: GeneratedBanner): Promise<HTMLCanvasElement> => {
-    try {
-      return await renderBannerServerSide(banner);
-    } catch {
-      console.warn('Server-side render unavailable, falling back to html2canvas');
-      return await renderBannerClientSide(banner);
-    }
-  }, [renderBannerServerSide, renderBannerClientSide]);
-
-  // Download single banner as PNG + HTML in a zip
+  // Download single banner as image directly
   const downloadBanner = useCallback(async (banner: GeneratedBanner) => {
     setDownloading(banner.id);
     try {
-      const canvas = await renderBannerToCanvas(banner);
-      const dataUrl = canvas.toDataURL('image/png');
-      const base64 = dataUrl.split(',')[1];
+      const imgBlob = await renderBannerToBlob(banner);
       const safeName = banner.fileName.replace(/[<>:"/\\|?*]/g, '_');
-
-      const zip = new JSZip();
-      // PNG
-      zip.file(`${safeName}.png`, base64, { base64: true });
-      // HTML
-      const htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=1080">
-<title>${banner.label} - ${banner.panelistName}</title>
-<style>
-  body { margin: 0; padding: 0; background: #000; display: flex; justify-content: center; }
-</style>
-</head>
-<body>
-${banner.html}
-</body>
-</html>`;
-      zip.file(`${safeName}.html`, htmlContent);
-
-      const blob = await zip.generateAsync({ type: 'blob' });
       const link = document.createElement('a');
-      link.download = `${safeName}.zip`;
-      link.href = URL.createObjectURL(blob);
+      link.download = `${safeName}.jpg`;
+      link.href = URL.createObjectURL(imgBlob);
       link.click();
       URL.revokeObjectURL(link.href);
     } catch (err) {
       console.error('Failed to export banner:', err);
-      showToast('Download failed — please try again', 'error');
+      showToast('Download failed — make sure the app was started with "npm run dev"', 'error');
     }
     setDownloading(null);
-  }, [renderBannerToCanvas]);
+  }, [renderBannerToBlob]);
 
   // Filter banners
   const filteredBanners = banners.filter((b) => {
@@ -507,58 +411,62 @@ ${banner.html}
     });
   }, [filteredBanners]);
 
-  // Download a set of banners as ZIP — organized by panelist folders, with PNGs + HTMLs
+  // Download a set of banners as ZIP — organized by panelist folders
   const downloadBannersAsZip = useCallback(async (bannersToZip: GeneratedBanner[], zipLabel?: string) => {
     if (bannersToZip.length === 0) return;
     setDownloadingAll(true);
     try {
-      const zip = new JSZip();
-
-      // Group banners by panelist name
-      const byPanelist = new Map<string, GeneratedBanner[]>();
-      for (const banner of bannersToZip) {
-        const arr = byPanelist.get(banner.panelistName) || [];
-        arr.push(banner);
-        byPanelist.set(banner.panelistName, arr);
-      }
-
-      let processedCount = 0;
       const totalBanners = bannersToZip.length;
-      for (const [panelistName, pBanners] of byPanelist) {
-        // Create a folder for each panelist
-        const folderName = panelistName.replace(/[<>:"/\\|?*]/g, '_');
-        const folder = zip.folder(folderName)!;
 
-        for (const banner of pBanners) {
-          processedCount++;
-          setDownloadProgress({ current: processedCount, total: totalBanners });
-          // Render PNG
-          const canvas = await renderBannerToCanvas(banner);
-          const dataUrl = canvas.toDataURL('image/png');
-          const base64 = dataUrl.split(',')[1];
-          const safeName = banner.fileName.replace(/[<>:"/\\|?*]/g, '_');
-
-          // Add PNG
-          folder.file(`${safeName}.png`, base64, { base64: true });
-
-          // Add HTML — the banner html is already a full document
-          folder.file(`${safeName}.html`, banner.html);
-        }
+      // Phase 1: Render each banner one-by-one via Puppeteer
+      const rendered: { safeName: string; panelistFolder: string; data: Uint8Array }[] = [];
+      for (let i = 0; i < totalBanners; i++) {
+        setDownloadProgress({ current: i + 1, total: totalBanners });
+        const banner = bannersToZip[i];
+        const blob = await renderBannerToBlob(banner);
+        const buf = await blob.arrayBuffer();
+        rendered.push({
+          safeName: banner.fileName.replace(/[<>:"/\\|?*]/g, '_'),
+          panelistFolder: banner.panelistName.replace(/[<>:"/\\|?*]/g, '_'),
+          data: new Uint8Array(buf),
+        });
       }
 
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const link = document.createElement('a');
-      link.download = `${zipLabel || panelName || 'banners'}.zip`;
-      link.href = URL.createObjectURL(blob);
-      link.click();
-      URL.revokeObjectURL(link.href);
+      // Phase 2: Build ZIP
+      setDownloadProgress(null);
+      console.log('Building ZIP with', rendered.length, 'images...');
+      const zip = new JSZip();
+      for (const item of rendered) {
+        const folder = zip.folder(item.panelistFolder)!;
+        folder.file(`${item.safeName}.jpg`, item.data, { binary: true });
+      }
+
+      console.log('Generating ZIP blob...');
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      console.log('ZIP blob size:', zipBlob.size);
+
+      // Phase 3: Trigger download
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `${zipLabel || panelName || 'banners'}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      // Clean up after a delay
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 5000);
+
+      showToast(`Downloaded ${rendered.length} banners as ZIP`, 'success');
     } catch (err) {
       console.error('Failed to create zip:', err);
-      showToast('ZIP creation failed — please try again', 'error');
+      showToast(`ZIP failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
     }
     setDownloadingAll(false);
     setDownloadProgress(null);
-  }, [renderBannerToCanvas, panelName]);
+  }, [renderBannerToBlob, panelName, showToast]);
 
   const downloadSelectedBanners = useCallback(() => {
     const selected = filteredBanners.filter((b) => selectedBannerIds.has(b.id));
@@ -1119,43 +1027,6 @@ ${banner.html}
     }
   }, [showToast]);
 
-  // ============================================================
-  // PDF Export
-  // ============================================================
-  const [pdfExporting, setPdfExporting] = useState(false);
-
-  const handlePdfExport = useCallback(async () => {
-    if (banners.length === 0) return;
-    setPdfExporting(true);
-    try {
-      // Render banners to PNG via server
-      const htmlList = banners.slice(0, 20).map(b => ({
-        html: b.html,
-        label: `${b.panelistName} — ${BANNER_TYPE_LABELS[b.type] || b.type}`,
-      }));
-      const pngBanners = await renderBannersToPng(htmlList, (current, total) => {
-        setDownloadProgress({ current, total });
-      });
-
-      const blob = await generateEventPdf({
-        eventName: panelName || 'Panel Event',
-        eventDate: eventDate,
-        panelTopic,
-        panelSubtitle,
-        panelists: panelists.map(p => ({ name: p.name, title: p.title, org: p.org })),
-        banners: pngBanners,
-      });
-
-      downloadPdf(blob, `${panelName || 'event'}_packet.pdf`);
-      showToast('PDF exported successfully', 'success');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'PDF export failed', 'error');
-    } finally {
-      setPdfExporting(false);
-      setDownloadProgress(null);
-    }
-  }, [banners, panelName, eventDate, panelTopic, panelSubtitle, panelists, showToast]);
-
   // Input class helper
   const inputClass = `w-full px-3 py-2.5 rounded-lg border-[2px] text-sm placeholder:text-[#9CA3AF] focus:outline-none focus:ring-1 transition-all dm-input`;
   const inputStyle: React.CSSProperties = { backgroundColor: inputBg, borderColor: inputBorder, color: textPrimary };
@@ -1508,16 +1379,6 @@ ${banner.html}
                     ? `Rendering ${downloadProgress.current}/${downloadProgress.total}...`
                     : downloadingAll ? 'Creating ZIP...' : `Download All (${filteredBanners.length}) as ZIP`
                   }
-                </button>
-                {/* PDF Export */}
-                <button
-                  onClick={handlePdfExport}
-                  disabled={pdfExporting}
-                  className="w-full flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-bold border-2 transition-all hover:opacity-80 disabled:opacity-50"
-                  style={{ borderColor: border, color: textPrimary, background: surface }}
-                >
-                  {pdfExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                  {pdfExporting ? 'Generating PDF...' : 'Export PDF Packet'}
                 </button>
               </div>
             )}

@@ -751,8 +751,7 @@ function getBgFlex(data: BannerData): string {
 function renderPanelistCard2P(p: { name: string; title: string; org: string; headshotUrl: string }, textColor: string, subtitleColor: string, theme: BannerTheme): string {
   const title = cleanTitle(p.title);
   return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;max-width:460px;">
-    <div style="width:320px;height:320px;border-radius:50%;border:8px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);">
-      <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
+    <div style="width:320px;height:320px;border-radius:50%;border:8px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);background:url('${p.headshotUrl}') center 15%/cover no-repeat;">
     </div>
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:32px;font-weight:800;color:${textColor};text-align:center;margin-top:14px;line-height:1.25;max-width:420px;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
     ${title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:6px;line-height:1.3;max-width:400px;">${title}</div>` : ''}
@@ -763,8 +762,7 @@ function renderPanelistCard2P(p: { name: string; title: string; org: string; hea
 function renderPanelistCard3P(p: { name: string; title: string; org: string; headshotUrl: string }, textColor: string, subtitleColor: string, theme: BannerTheme): string {
   const title = cleanTitle(p.title);
   return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;max-width:340px;">
-    <div style="width:270px;height:270px;border-radius:50%;border:8px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);">
-      <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
+    <div style="width:270px;height:270px;border-radius:50%;border:8px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);background:url('${p.headshotUrl}') center 15%/cover no-repeat;">
     </div>
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:28px;font-weight:800;color:${textColor};text-align:center;margin-top:14px;line-height:1.25;max-width:320px;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
     ${title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:20px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:6px;line-height:1.3;max-width:300px;">${title}</div>` : ''}
@@ -775,8 +773,7 @@ function renderPanelistCard3P(p: { name: string; title: string; org: string; hea
 function renderPanelistCard4P(p: { name: string; title: string; org: string; headshotUrl: string }, textColor: string, subtitleColor: string, theme: BannerTheme): string {
   const title = cleanTitle(p.title);
   return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;max-width:260px;">
-    <div style="width:220px;height:220px;border-radius:50%;border:6px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);">
-      <img src="${p.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
+    <div style="width:220px;height:220px;border-radius:50%;border:6px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 8px 24px rgba(0,0,0,0.4);background:url('${p.headshotUrl}') center 15%/cover no-repeat;">
     </div>
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:26px;font-weight:800;color:${textColor};text-align:center;margin-top:12px;line-height:1.25;max-width:240px;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
     ${title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:18px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:4px;line-height:1.3;max-width:240px;">${title}</div>` : ''}
@@ -846,8 +843,7 @@ function generateB1(data: BannerData): string {
       <div style="position:relative;">
         <!-- Glow behind -->
         <div style="position:absolute;inset:-30px;border-radius:50%;background:radial-gradient(circle,${t.accent}73 0%,transparent 70%);"></div>
-        <div style="width:380px;height:380px;border-radius:50%;border:8px solid ${t.accent};overflow:hidden;position:relative;box-shadow:0 0 0 6px ${t.neonBorder}b3,0 0 0 16px ${t.neonBorder}66,0 0 0 26px ${t.neonBorder}40,0 0 0 36px ${t.neonBorder}1f,0 0 60px ${t.neonBorder}66;">
-          <img src="${data.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
+        <div style="width:380px;height:380px;border-radius:50%;border:8px solid ${t.accent};overflow:hidden;position:relative;box-shadow:0 0 0 6px ${t.neonBorder}b3,0 0 0 16px ${t.neonBorder}66,0 0 0 26px ${t.neonBorder}40,0 0 0 36px ${t.neonBorder}1f,0 0 60px ${t.neonBorder}66;background:url('${data.headshotUrl}') center 15%/cover no-repeat;">
         </div>
       </div>
     </div>
@@ -1007,8 +1003,7 @@ function generateB4(data: BannerData): string {
   <div style="height:4px;background:linear-gradient(90deg,${t.separatorColor},${t.separatorColor}1a);flex-shrink:0;"></div>
   <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:30px 50px;gap:0;">
     <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:360px;">
-      <div style="width:320px;height:320px;border-radius:50%;border:8px solid ${t.accent};overflow:hidden;box-shadow:0 0 0 4px ${t.neonBorder}40,0 16px 48px rgba(0,0,0,0.6);">
-        <img src="${data.headshotUrl}" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;">
+      <div style="width:320px;height:320px;border-radius:50%;border:8px solid ${t.accent};overflow:hidden;box-shadow:0 0 0 4px ${t.neonBorder}40,0 16px 48px rgba(0,0,0,0.6);background:url('${data.headshotUrl}') center 15%/cover no-repeat;">
       </div>
       <div style="font-family:Montserrat,Arial,sans-serif;font-size:32px;font-weight:800;color:#ffffff;text-align:center;margin-top:20px;">${data.panelistName}</div>
       ${pTitle ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:600;color:${t.lime};text-align:center;margin-top:8px;">${pTitle}</div>` : ''}
