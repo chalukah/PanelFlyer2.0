@@ -419,7 +419,7 @@ export default function FlyerApp() {
       const totalBanners = bannersToZip.length;
 
       // Phase 1: Render each banner one-by-one via Puppeteer
-      const rendered: { safeName: string; panelistFolder: string; data: Uint8Array }[] = [];
+      const rendered: { safeName: string; panelistFolder: string; data: Uint8Array; html: string }[] = [];
       for (let i = 0; i < totalBanners; i++) {
         setDownloadProgress({ current: i + 1, total: totalBanners });
         const banner = bannersToZip[i];
@@ -429,16 +429,20 @@ export default function FlyerApp() {
           safeName: banner.fileName.replace(/[<>:"/\\|?*]/g, '_'),
           panelistFolder: banner.panelistName.replace(/[<>:"/\\|?*]/g, '_'),
           data: new Uint8Array(buf),
+          html: banner.html,
         });
       }
 
-      // Phase 2: Build ZIP
+      // Phase 2: Build ZIP — images folder + HTML folder per panelist
       setDownloadProgress(null);
       console.log('Building ZIP with', rendered.length, 'images...');
       const zip = new JSZip();
       for (const item of rendered) {
-        const folder = zip.folder(item.panelistFolder)!;
-        folder.file(`${item.safeName}.jpg`, item.data, { binary: true });
+        const imgFolder = zip.folder(`${item.panelistFolder}_images`)!;
+        imgFolder.file(`${item.safeName}.jpg`, item.data, { binary: true });
+
+        const htmlFolder = zip.folder(`${item.panelistFolder}_html`)!;
+        htmlFolder.file(`${item.safeName}.html`, item.html);
       }
 
       console.log('Generating ZIP blob...');
