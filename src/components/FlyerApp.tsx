@@ -47,6 +47,7 @@ import {
   extractPanelistsWithAI,
   extractPanelistsFromFileNames,
   extractEventDetails,
+  type ParsedPanelist,
 } from '../utils/folderParser';
 import { checkGogStatus, gogListFolder, gogExportDoc, gogDownloadFile, gogExtractFolder } from '../utils/gogClient';
 
@@ -78,6 +79,115 @@ import { VerticalIcon, VERTICAL_EMOJI } from './flyer/VerticalIcon';
 import { PanelistRow } from './flyer/PanelistRow';
 import { BannerThumbnail } from './flyer/BannerThumbnail';
 import { BannerModal } from './flyer/BannerModal';
+
+function normalizePanelistName(name: string): string {
+  return name
+    .split(',')[0]
+    .replace(/^Dr\.?\s*/i, '')
+    .replace(/[^a-zA-Z\s'-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function panelistNamesLooselyMatch(left: string, right: string): boolean {
+  const a = normalizePanelistName(left);
+  const b = normalizePanelistName(right);
+  if (!a || !b) return false;
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+
+  const aParts = a.split(' ').filter(Boolean);
+  const bParts = b.split(' ').filter(Boolean);
+  const aFirst = aParts[0] || '';
+  const bFirst = bParts[0] || '';
+  const aLast = aParts[aParts.length - 1] || '';
+  const bLast = bParts[bParts.length - 1] || '';
+
+  return Boolean(
+    aLast &&
+    bLast &&
+    aLast === bLast &&
+    aFirst &&
+    bFirst &&
+    (aFirst === bFirst || aFirst.startsWith(bFirst) || bFirst.startsWith(aFirst) || aFirst[0] === bFirst[0]),
+  );
+}
+
+function scorePanelistRecord(panelist: ParsedPanelist, hintedNames: string[]): number {
+  const title = panelist.title.trim();
+  const org = panelist.org.trim();
+  const hinted = hintedNames.some((hint) => panelistNamesLooselyMatch(panelist.name, hint));
+
+  let score = hinted ? 10 : 0;
+  if (panelist.email.trim()) score += 3;
+  if (panelist.phone.trim()) score += 2;
+  if (title && !/^hi\b/i.test(title) && !/\bfull name\b/i.test(title)) score += 2;
+  if (org && !/^we['’]ve\b/i.test(org) && !/\bshort bio\b/i.test(org)) score += 2;
+
+  return score;
+}
+
+function sanitizeParsedPanelists(panelists: ParsedPanelist[], files: DriveFile[]): ParsedPanelist[] {
+  const hintedNames = extractPanelistsFromFileNames(files)
+    .map((p) => p.name.trim())
+    .filter((name) => name.length > 2 && !/^promo banners?$/i.test(name));
+
+  const JUNK_NAME_PATTERNS = /^(zoom|landing|page|partner|details|promotional|material|registration|overview|agenda|schedule|notes|draft|template|untitled|document|reducing|increasing|improving|building|how|what|why|when|the |this |our |your |panel|expert|topic|discussion|date|time|location|event|webinar|register|unique|email drafts|zoom chat|veterinary business institute|event coordinator)/i;
+
+  const filtered = panelists.filter((p) => {
+    const name = p.name.trim();
+    if (name.length <= 2) return false;
+    if (!name.includes(' ') && !/^dr\./i.test(name)) return false;
+    if (JUNK_NAME_PATTERNS.test(name)) return false;
+    if (hintedNames.length === 0) return true;
+    return hintedNames.some((hint) => panelistNamesLooselyMatch(name, hint));
+  });
+
+  const bestByName = new Map<string, { panelist: ParsedPanelist; index: number; score: number }>();
+  filtered.forEach((panelist, index) => {
+    const key = normalizePanelistName(panelist.name);
+    if (!key) return;
+
+    const next = {
+      panelist,
+      index,
+      score: scorePanelistRecord(panelist, hintedNames),
+    };
+    const current = bestByName.get(key);
+    if (!current || next.score > current.score || (next.score === current.score && next.index < current.index)) {
+      bestByName.set(key, next);
+    }
+  });
+
+  const hintedOrder = hintedNames.map((name) => normalizePanelistName(name));
+  return [...bestByName.values()]
+    .sort((left, right) => {
+      const leftHint = hintedOrder.findIndex((name) => panelistNamesLooselyMatch(left.panelist.name, name));
+      const rightHint = hintedOrder.findIndex((name) => panelistNamesLooselyMatch(right.panelist.name, name));
+      if (leftHint !== rightHint) {
+        if (leftHint === -1) return 1;
+        if (rightHint === -1) return -1;
+        return leftHint - rightHint;
+      }
+      if (left.score !== right.score) return right.score - left.score;
+      return left.index - right.index;
+    })
+    .map((entry) => entry.panelist);
+}
+
+function panelistMatchesQrFolder(panelist: ParsedPanelist, folderName: string): boolean {
+  const folderNorm = normalizePanelistName(folderName);
+  const nameNorm = normalizePanelistName(panelist.name);
+  const firstNorm = normalizePanelistName(panelist.firstName || panelist.name).split(' ')[0] || '';
+  const nameParts = nameNorm.split(' ').filter(Boolean);
+  const lastNorm = nameParts[nameParts.length - 1] || '';
+
+  return (
+    panelistNamesLooselyMatch(panelist.name, folderName) ||
+    (lastNorm.length > 2 && folderNorm.includes(lastNorm)) ||
+    (firstNorm.length > 2 && folderNorm.includes(firstNorm))
+  );
+}
 
 // ============================================================
 // Main FlyerApp
@@ -116,6 +226,7 @@ export default function FlyerApp() {
 
   // Panelist count
   const [panelistCount, setPanelistCount] = useState<PanelistCount>(3);
+  const [userPickedPanelistCount, setUserPickedPanelistCount] = useState(false);
 
   // Internal form state (populated by Drive import or manual entry)
   const [headerText, setHeaderText] = useState('Veterinary Business Institute Expert Panel');
@@ -131,6 +242,7 @@ export default function FlyerApp() {
   // Generated banners
   const [banners, setBanners] = useState<GeneratedBanner[]>([]);
   const [visibleBannerIds, setVisibleBannerIds] = useState<Set<string>>(new Set());
+  const [disabledPanelistIds, setDisabledPanelistIds] = useState<Set<string>>(new Set());
   const [selectedPanelistFilter, setSelectedPanelistFilter] = useState<string>('all');
   const [selectedBannerType, setSelectedBannerType] = useState<BannerType | 'all'>('all');
   const [downloading, setDownloading] = useState<string | null>(null);
@@ -155,12 +267,12 @@ export default function FlyerApp() {
   const [driveImported, setDriveImported] = useState(false);
 
   // Toast notification
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning'; onUndo?: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success', onUndo?: () => void) => {
     clearTimeout(toastTimer.current);
-    setToast({ message, type });
-    toastTimer.current = setTimeout(() => setToast(null), type === 'error' ? 6000 : 4000);
+    setToast({ message, type, onUndo });
+    toastTimer.current = setTimeout(() => setToast(null), onUndo ? 6000 : type === 'error' ? 6000 : 4000);
   }, []);
 
   // UI toggles
@@ -180,6 +292,7 @@ export default function FlyerApp() {
   const [claudeTesting, setClaudeTesting] = useState(false);
   const [claudeChecking, setClaudeChecking] = useState(true); // starts true — checking on load
   const [cliConnected, setCliConnected] = useState(false);
+  const [cliProvider, setCliProvider] = useState<'claude' | 'codex' | undefined>(undefined);
   const [showKey, setShowKey] = useState(false);
   const [aiEnhancing, setAiEnhancing] = useState(false);
 
@@ -201,6 +314,7 @@ export default function FlyerApp() {
     setClaudeChecking(true);
     checkUnifiedAIStatus(true).then(status => {
       setCliConnected(status.cliConnected);
+      setCliProvider(status.cliProvider);
       setClaudeConnected(status.mode !== 'none');
     }).catch(err => {
       console.error('[AI status check failed]', err);
@@ -235,6 +349,11 @@ export default function FlyerApp() {
     }
   };
 
+  const handlePanelistCountChange = (count: PanelistCount, isUserAction = false) => {
+    if (isUserAction) setUserPickedPanelistCount(true);
+    setPanelistCount(count);
+  };
+
   const addPanelist = () => {
     setPanelists((prev) => [
       ...prev,
@@ -246,17 +365,35 @@ export default function FlyerApp() {
     setPanelists((prev) => prev.map((p, i) => (i === index ? data : p)));
   };
 
+  const [pendingRegenerate, setPendingRegenerate] = useState(false);
+
   const removePanelist = (index: number) => {
     setPanelists((prev) => prev.filter((_, i) => i !== index));
+    if (banners.length > 0) setPendingRegenerate(true);
+  };
+
+  const togglePanelist = (panelistId: string) => {
+    setDisabledPanelistIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(panelistId)) next.delete(panelistId);
+      else next.add(panelistId);
+      return next;
+    });
+    if (banners.length > 0) setPendingRegenerate(true);
   };
 
   // Generate all banners with staggered animation
   const generateAllBanners = useCallback(() => {
-    if (panelists.length === 0) return;
-    const incomplete = panelists.filter(p => !p.name.trim());
+    const activePanelists = panelists.filter(p => !disabledPanelistIds.has(p.id));
+    if (activePanelists.length === 0) {
+      setBanners([]);
+      setGenerating(false);
+      return;
+    }
+    const incomplete = activePanelists.filter(p => !p.name.trim());
     if (incomplete.length > 0) {
       panelists.forEach((p, i) => {
-        if (!p.name.trim()) {
+        if (!p.name.trim() && !disabledPanelistIds.has(p.id)) {
           setPanelists(prev => prev.map((pp, idx) => idx === i ? { ...pp, name: `Panelist ${i + 1}`, firstName: 'Panelist' } : pp));
         }
       });
@@ -264,9 +401,9 @@ export default function FlyerApp() {
 
     // Warn about missing data (non-blocking)
     const warnings: string[] = [];
-    const noHeadshot = panelists.filter(p => !p.headshotUrl);
-    const noTitle = panelists.filter(p => !p.title.trim());
-    const noQR = panelists.filter(p => Object.values(p.qrCodes).filter(Boolean).length === 0);
+    const noHeadshot = activePanelists.filter(p => !p.headshotUrl);
+    const noTitle = activePanelists.filter(p => !p.title.trim());
+    const noQR = activePanelists.filter(p => Object.values(p.qrCodes).filter(Boolean).length === 0);
     if (noHeadshot.length > 0) warnings.push(`${noHeadshot.length} missing headshot${noHeadshot.length > 1 ? 's' : ''}`);
     if (noTitle.length > 0) warnings.push(`${noTitle.length} missing title${noTitle.length > 1 ? 's' : ''}`);
     if (noQR.length > 0) warnings.push(`${noQR.length} missing QR codes`);
@@ -277,7 +414,7 @@ export default function FlyerApp() {
     setGenProgress(0);
     setVisibleBannerIds(new Set());
 
-    const allPanelistData = panelists.map((p) => ({
+    const allPanelistData = activePanelists.map((p) => ({
       name: p.name,
       title: p.title,
       org: p.org,
@@ -286,7 +423,7 @@ export default function FlyerApp() {
 
     const allBanners: GeneratedBanner[] = [];
 
-    panelists.forEach((p) => {
+    activePanelists.forEach((p) => {
       const data: BannerData = {
         headerText,
         panelName,
@@ -322,13 +459,25 @@ export default function FlyerApp() {
         if (i === allBanners.length - 1) setGenerating(false);
       }, 100 * i);
     });
-  }, [panelists, headerText, panelName, panelTopic, panelSubtitle, eventDate, eventTime, websiteUrl, verticalConfig, selectedTheme]);
+  }, [panelists, disabledPanelistIds, headerText, panelName, panelTopic, panelSubtitle, eventDate, eventTime, websiteUrl, verticalConfig, selectedTheme]);
+
+  // Auto-regenerate banners after a panelist is removed
+  useEffect(() => {
+    if (pendingRegenerate) {
+      setPendingRegenerate(false);
+      if (panelists.length > 0) {
+        generateAllBanners();
+      } else {
+        setBanners([]);
+      }
+    }
+  }, [pendingRegenerate, panelists, generateAllBanners]);
 
   // Track last-generated state to avoid unnecessary regeneration on blur
   const lastGenSnapshot = useRef('');
   const getDataSnapshot = useCallback(() => {
-    return JSON.stringify({ headerText, panelName, panelTopic, panelSubtitle, eventDate, eventTime, websiteUrl, panelists: panelists.map(p => ({ name: p.name, title: p.title, org: p.org })) });
-  }, [headerText, panelName, panelTopic, panelSubtitle, eventDate, eventTime, websiteUrl, panelists]);
+    return JSON.stringify({ headerText, panelName, panelTopic, panelSubtitle, eventDate, eventTime, websiteUrl, disabled: [...disabledPanelistIds], panelists: panelists.map(p => ({ name: p.name, title: p.title, org: p.org })) });
+  }, [headerText, panelName, panelTopic, panelSubtitle, eventDate, eventTime, websiteUrl, panelists, disabledPanelistIds]);
 
   const regenerateIfChanged = useCallback(() => {
     const snap = getDataSnapshot();
@@ -607,18 +756,11 @@ export default function FlyerApp() {
 
       let parsedPanelists = await extractPanelistsWithAI(docText, files.map(f => f.name), claudeKey || undefined);
 
-      // Filter out clearly invalid "panelist" names (doc headings, section titles, etc.)
-      const JUNK_NAME_PATTERNS = /^(zoom|landing|page|partner|details|promotional|material|registration|overview|agenda|schedule|notes|draft|template|untitled|document|reducing|increasing|improving|building|how|what|why|when|the |this |our |your |panel|expert|topic|discussion|date|time|location|event|webinar|register)/i;
-      parsedPanelists = parsedPanelists.filter(p =>
-        p.name.trim().length > 2 &&
-        !JUNK_NAME_PATTERNS.test(p.name.trim()) &&
-        // Real names have 2+ words or a Dr. prefix
-        (p.name.trim().includes(' ') || /^dr\./i.test(p.name.trim()))
-      );
+      parsedPanelists = sanitizeParsedPanelists(parsedPanelists, files);
 
       // Fallback to filename extraction if AI found nothing valid
       if (parsedPanelists.length === 0) {
-        parsedPanelists = extractPanelistsFromFileNames(files);
+        parsedPanelists = sanitizeParsedPanelists(extractPanelistsFromFileNames(files), files);
       }
 
       const eventDetails = extractEventDetails(docText, parsed.folderName);
@@ -633,8 +775,10 @@ export default function FlyerApp() {
       else if (/dominate\s*law|law|attorney|legal|counsel|barrister|solicitor|esquire/i.test(allText)) detectedVertical = 'dominate-law';
       else if (/vet|veterinar|dvm|animal\s*hospital|animal\s*clinic|pet\s*care/i.test(allText)) detectedVertical = 'vet';
 
-      // Only auto-switch vertical if user hasn't manually selected one
-      if (detectedVertical && detectedVertical !== selectedVertical && !userPickedVertical) {
+      const lockImportSelections = userPickedVertical || userPickedPanelistCount;
+
+      // Only auto-switch vertical if the user has not already chosen import settings
+      if (detectedVertical && detectedVertical !== selectedVertical && !lockImportSelections) {
         handleVerticalChange(detectedVertical);
         // Re-apply gog data that handleVerticalChange may have overwritten
         if (gogTopicData.panelName) setPanelName(gogTopicData.panelName);
@@ -784,14 +928,7 @@ export default function FlyerApp() {
 
           for (const qrFolder of qrFolders) {
             // Match folder name to panelist
-            const qrFolderLower = qrFolder.name.toLowerCase();
-            const matchedPanelist = parsedPanelists.find(p => {
-              const lastName = p.name.split(/[\s,]+/).filter(w => w.length > 2 && !/^(dr|dvm|dds|jd|md|phd|mba|cpa)$/i.test(w)).pop()?.toLowerCase() || '';
-              const firstName = (p.firstName || '').replace(/^Dr\.?\s*/i, '').toLowerCase();
-              return (lastName.length > 2 && qrFolderLower.includes(lastName)) ||
-                     (firstName.length > 2 && qrFolderLower.includes(firstName)) ||
-                     qrFolderLower === p.name.toLowerCase();
-            });
+            const matchedPanelist = parsedPanelists.find((p) => panelistMatchesQrFolder(p, qrFolder.name));
 
             if (!matchedPanelist) continue;
 
@@ -901,7 +1038,9 @@ export default function FlyerApp() {
 
       if (newPanelists.length > 0) {
         setPanelists(newPanelists);
-        setPanelistCount(Math.min(Math.max(newPanelists.length, 2), 4) as PanelistCount);
+        if (!userPickedPanelistCount) {
+          setPanelistCount(Math.min(Math.max(newPanelists.length, 2), 6) as PanelistCount);
+        }
       }
 
       setDriveImported(true);
@@ -966,6 +1105,7 @@ export default function FlyerApp() {
     setClaudeChecking(true);
     const status = await checkUnifiedAIStatus(true);
     setCliConnected(status.cliConnected);
+    setCliProvider(status.cliProvider);
     setClaudeConnected(status.mode !== 'none');
     setClaudeChecking(false);
     return status.cliConnected;
@@ -975,6 +1115,7 @@ export default function FlyerApp() {
     setClaudeTesting(true);
     const status = await checkUnifiedAIStatus(true);
     setCliConnected(status.cliConnected);
+    setCliProvider(status.cliProvider);
     setClaudeConnected(status.mode !== 'none');
     setClaudeTesting(false);
   };
@@ -1144,12 +1285,12 @@ export default function FlyerApp() {
                 <h3 className="text-sm font-bold" style={{ color: textPrimary }}>Panelist Count</h3>
               </div>
               <div className="flex gap-2">
-                {([2, 3, 4] as PanelistCount[]).map((count) => {
+                {([2, 3, 4, 5, 6] as PanelistCount[]).map((count) => {
                   const isSelected = panelistCount === count;
                   return (
                     <button
                       key={count}
-                      onClick={() => setPanelistCount(count)}
+                      onClick={() => handlePanelistCountChange(count, true)}
                       className={`flex-1 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 border-[2px] hover:translate-y-[-1px] hover:shadow-sm ${isSelected ? 'scale-[1.03]' : ''}`}
                       style={isSelected
                         ? { background: vColors.accent, color: '#fff', borderColor: vColors.accent }
@@ -1474,8 +1615,22 @@ export default function FlyerApp() {
                     <div className="pt-3" style={{ borderTop: `1px solid ${darkMode ? '#333' : '#e5e7eb'}` }}>
                       <h4 className="text-[10px] font-bold mb-2" style={{ color: textSecondary }}>PANELISTS</h4>
                       <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-                        {panelists.map((p, i) => (
-                          <div key={p.id} className="flex gap-2.5 items-start rounded-xl p-3" style={{ background: darkMode ? '#252525' : '#f9fafb' }}>
+                        {panelists.map((p, i) => {
+                          const isDisabled = disabledPanelistIds.has(p.id);
+                          return (
+                          <div key={p.id} className="relative flex gap-2.5 items-start rounded-xl p-3 transition-opacity" style={{ background: darkMode ? '#252525' : '#f9fafb', opacity: isDisabled ? 0.4 : 1 }}>
+                            {/* Toggle switch */}
+                            <button
+                              onClick={() => togglePanelist(p.id)}
+                              className="absolute top-2 right-2 w-8 h-[18px] rounded-full transition-all duration-200 shrink-0"
+                              style={{ background: isDisabled ? (darkMode ? '#555' : '#d1d5db') : vColors.accent }}
+                              title={isDisabled ? `Enable ${p.name}` : `Disable ${p.name}`}
+                            >
+                              <div
+                                className="w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-all duration-200"
+                                style={{ transform: isDisabled ? 'translateX(2px)' : 'translateX(14px)' }}
+                              />
+                            </button>
                             <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border-[2px]" style={{ borderColor: border }}>
                               {p.headshotUrl ? (
                                 <img src={p.headshotUrl} className="w-full h-full object-cover" />
@@ -1510,7 +1665,8 @@ export default function FlyerApp() {
                               />
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1752,29 +1908,41 @@ export default function FlyerApp() {
                     ))}
 
                     {/* Panelist rows */}
-                    {Array.from(bannersByPanelist.entries()).map(([panelistName, pBanners]) => {
-                      const panelist = panelists.find((p) => p.name === panelistName);
-                      const panelistIdx = panelists.findIndex((p) => p.name === panelistName);
+                    {panelists.map((panelist) => {
+                      const isDisabled = disabledPanelistIds.has(panelist.id);
+                      const pBanners = bannersByPanelist.get(panelist.name) || [];
                       return (
-                        <div key={panelistName} className="contents">
+                        <div key={panelist.id} className="contents" style={{ opacity: isDisabled ? 0.35 : 1 }}>
                           {/* Row header */}
                           <div className="flex flex-col items-center gap-1.5 pr-2">
                             <div className="flex items-center gap-2 w-full">
+                              {/* Toggle switch */}
+                              <button
+                                onClick={() => togglePanelist(panelist.id)}
+                                className="w-7 h-[16px] rounded-full transition-all duration-200 shrink-0"
+                                style={{ background: isDisabled ? (darkMode ? '#555' : '#d1d5db') : vColors.accent }}
+                                title={isDisabled ? `Enable ${panelist.name}` : `Disable ${panelist.name}`}
+                              >
+                                <div
+                                  className="w-[12px] h-[12px] rounded-full bg-white shadow-sm transition-all duration-200"
+                                  style={{ transform: isDisabled ? 'translateX(2px)' : 'translateX(13px)' }}
+                                />
+                              </button>
                               <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border-2" style={{ borderColor: border }}>
-                                {panelist?.headshotUrl ? (
+                                {panelist.headshotUrl ? (
                                   <img src={panelist.headshotUrl} className="w-full h-full object-cover" />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center text-[10px] font-bold" style={{ background: darkMode ? '#333' : '#f3f4f6', color: textSecondary }}>
-                                    {panelistName[0] || '?'}
+                                    {panelist.name[0] || '?'}
                                   </div>
                                 )}
                               </div>
-                              <div className="min-w-0">
-                                <div className="text-[11px] font-semibold truncate max-w-[100px]" style={{ color: textPrimary }}>{panelistName}</div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-[11px] font-semibold truncate max-w-[80px]" style={{ color: textPrimary }}>{panelist.name}</div>
                               </div>
                             </div>
                             {/* QR status indicator */}
-                            {panelist?.qrCodes && Object.values(panelist.qrCodes).filter(Boolean).length > 0 && (
+                            {!isDisabled && panelist.qrCodes && Object.values(panelist.qrCodes).filter(Boolean).length > 0 && (
                               <div className="flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#d4edda', color: '#155724' }}>
                                 <QrCode className="w-3 h-3" />
                                 QR {Object.values(panelist.qrCodes).filter(Boolean).length}/5
@@ -1782,8 +1950,15 @@ export default function FlyerApp() {
                             )}
                           </div>
 
-                          {/* Banner thumbnails */}
+                          {/* Banner thumbnails or empty placeholders */}
                           {(['B1', 'B2', 'B3', 'B4', 'B5'] as const).map((type) => {
+                            if (isDisabled) {
+                              return (
+                                <div key={type} className="aspect-square rounded-xl border-2 border-dashed flex items-center justify-center" style={{ borderColor: darkMode ? '#333' : '#e5e7eb' }}>
+                                  <span className="text-[9px] font-medium" style={{ color: textSecondary }}>OFF</span>
+                                </div>
+                              );
+                            }
                             const banner = pBanners.find((b) => b.type === type);
                             if (!banner) return <div key={type} />;
                             const globalIdx = banners.findIndex((b) => b.id === banner.id);
@@ -1912,7 +2087,7 @@ export default function FlyerApp() {
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-4" style={{ background: darkMode ? 'rgba(34,197,94,0.1)' : '#f0fdf4', border: `1px solid ${darkMode ? '#22c55e50' : '#bbf7d0'}` }}>
                 <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
                 <span className="text-xs font-semibold" style={{ color: darkMode ? '#4ade80' : '#15803d' }}>
-                  {cliConnected ? 'Connected via Claude Code CLI' : 'Connected via API Key'}
+                  {cliConnected ? (cliProvider === 'codex' ? 'Connected via OpenAI Codex' : 'Connected via Claude Code CLI') : 'Connected via API Key'}
                 </span>
               </div>
             )}
@@ -1924,7 +2099,7 @@ export default function FlyerApp() {
                 className="flex-1 text-xs font-bold py-2 rounded-md transition-all"
                 style={settingsTab === 'cli' ? { background: surface, color: textPrimary, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' } : { color: textSecondary }}
               >
-                Claude Code (Recommended)
+                Local CLI (Recommended)
               </button>
               <button
                 onClick={() => setSettingsTab('apikey')}
@@ -1939,21 +2114,22 @@ export default function FlyerApp() {
             {settingsTab === 'cli' && (
               <div className="space-y-4">
                 <p className="text-xs leading-relaxed" style={{ color: textSecondary }}>
-                  Use your Claude Code subscription — no API key needed. Make sure Claude Code is installed on your computer.
+                  Use Claude Code or OpenAI Codex from this computer. The app will prefer Claude first, then fall back to Codex if Claude is unavailable.
                 </p>
 
                 <div className="space-y-3 rounded-xl p-4" style={{ background: darkMode ? '#252525' : '#f9fafb', border: `1px solid ${darkMode ? '#444' : '#e5e7eb'}` }}>
                   <div className="flex items-start gap-3">
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5" style={{ background: vColors.accent, color: '#fff' }}>1</div>
                     <div>
-                      <p className="text-xs font-semibold" style={{ color: textPrimary }}>Install Claude Code</p>
+                      <p className="text-xs font-semibold" style={{ color: textPrimary }}>Install a local AI CLI</p>
                       <code className="text-[10px] px-1.5 py-0.5 rounded mt-1 block" style={{ background: darkMode ? '#333' : '#e5e7eb', color: textSecondary }}>npm install -g @anthropic-ai/claude-code</code>
+                      <code className="text-[10px] px-1.5 py-0.5 rounded mt-1 block" style={{ background: darkMode ? '#333' : '#e5e7eb', color: textSecondary }}>npm install -g @openai/codex</code>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5" style={{ background: vColors.accent, color: '#fff' }}>2</div>
                     <div>
-                      <p className="text-xs font-semibold" style={{ color: textPrimary }}>Run <code className="px-1 rounded text-[10px]" style={{ background: darkMode ? '#333' : '#e5e7eb' }}>claude</code> in your terminal and complete login</p>
+                      <p className="text-xs font-semibold" style={{ color: textPrimary }}>Run <code className="px-1 rounded text-[10px]" style={{ background: darkMode ? '#333' : '#e5e7eb' }}>claude</code> or <code className="px-1 rounded text-[10px]" style={{ background: darkMode ? '#333' : '#e5e7eb' }}>codex login</code> and complete login</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -1968,7 +2144,7 @@ export default function FlyerApp() {
                 <div className="flex items-center gap-2">
                   <div className={`w-2.5 h-2.5 rounded-full ${cliConnected ? 'bg-green-500' : claudeChecking ? 'bg-yellow-400 animate-pulse' : 'bg-red-400'}`} />
                   <span className="text-xs" style={{ color: textSecondary }}>
-                    {cliConnected ? 'Claude CLI connected and authenticated' : claudeChecking ? 'Checking...' : 'Not connected'}
+                    {cliConnected ? (cliProvider === 'codex' ? 'OpenAI Codex connected and authenticated' : 'Claude CLI connected and authenticated') : claudeChecking ? 'Checking...' : 'Not connected'}
                   </span>
                 </div>
 
@@ -2097,6 +2273,15 @@ export default function FlyerApp() {
                 : darkMode ? 'bg-green-900/30 text-green-300 border-green-800' : 'bg-green-50 text-green-800 border-green-200'
           }`}>
             <p className="flex-1 text-sm font-medium">{toast.message}</p>
+            {toast.onUndo && (
+              <button
+                onClick={() => { toast.onUndo!(); setToast(null); }}
+                className="text-xs font-bold px-3 py-1 rounded-full transition-all hover:opacity-80"
+                style={{ background: darkMode ? '#fff2' : '#0001', color: darkMode ? '#fbbf24' : '#92400e' }}
+              >
+                Undo
+              </button>
+            )}
             <button onClick={() => setToast(null)} className="p-1 hover:bg-black/10 rounded-full">
               <X className="w-4 h-4" />
             </button>

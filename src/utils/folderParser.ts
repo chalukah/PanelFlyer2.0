@@ -200,10 +200,10 @@ If you cannot find any panelists, respond with: []`;
     return result.length > 0 ? result : null;
   };
 
-  // 1. Try local Claude CLI server first (no API key needed)
+  // 1. Try any local CLI provider first (Claude, then Codex)
   try {
-    const { sendToClaudeCLI } = await import('./claudeClient');
-    const text = await sendToClaudeCLI(prompt, 'claude-opus-4-6');
+    const { generateText } = await import('./aiService');
+    const text = await generateText(prompt, { preferMode: 'claude', model: 'claude-opus-4-6' });
     const result = parseAIResponse(text);
     if (result) return result;
   } catch {

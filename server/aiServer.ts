@@ -115,6 +115,43 @@ function getClaudeBin(): string {
   throw new Error('claude CLI not found. Install Claude Code: npm install -g @anthropic-ai/claude-code');
 }
 
+function getCodexBin(): string {
+  const isWin = process.platform === 'win32';
+
+  try {
+    const cmd = isWin ? 'where' : 'which';
+    const result = execFileSync(cmd, ['codex'], { encoding: 'utf-8' }).trim();
+    const lines = result.split('\n').map((l) => l.trim()).filter(Boolean);
+
+    if (isWin) {
+      const cmdVersion = lines.find((l) => l.endsWith('.cmd'));
+      if (cmdVersion) return cmdVersion;
+    }
+
+    if (lines[0]) return lines[0];
+  } catch {}
+
+  const candidates = isWin
+    ? [
+        join(homedir(), 'AppData', 'Roaming', 'npm', 'codex.cmd'),
+        'C:\\Program Files\\nodejs\\codex.cmd',
+      ]
+    : [
+        '/usr/local/bin/codex',
+        join(homedir(), '.local/bin/codex'),
+        join(homedir(), '.npm-global/bin/codex'),
+      ];
+
+  for (const c of candidates) {
+    try {
+      execFileSync(c, ['--version'], { encoding: 'utf-8', timeout: 5000 });
+      return c;
+    } catch {}
+  }
+
+  throw new Error('OpenAI Codex CLI not found. Install Codex CLI and sign in with ChatGPT or an API key.');
+}
+
 // --- Spawn Helper ---
 
 function spawnClaude(prompt: string, model: string): ReturnType<typeof spawn> {
@@ -156,12 +193,138 @@ function spawnClaude(prompt: string, model: string): ReturnType<typeof spawn> {
   return proc;
 }
 
+function spawnCodex(prompt: string, model?: string): { proc: ReturnType<typeof spawn>; outputPath: string; tempDir: string } {
+  const env: Record<string, string> = {};
+  for (const [key, val] of Object.entries(process.env)) {
+    if (val !== undefined) {
+      env[key] = val;
+    }
+  }
+
+  const safeModel = model && !model.startsWith('claude-') ? model : 'gpt-5.4';
+  const tempDir = mkdtempSync(join(tmpdir(), 'codex-'));
+  const outputPath = join(tempDir, 'last-message.txt');
+  const isWin = process.platform === 'win32';
+  const args = [
+    'exec',
+    '-',
+    '--skip-git-repo-check',
+    '--ephemeral',
+    '--output-last-message',
+    outputPath,
+    '--model',
+    safeModel,
+  ];
+
+  let proc;
+  if (isWin) {
+    const quotedArgs = args.map((arg) => (/\s/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg));
+    const cmdLine = ['codex', ...quotedArgs].join(' ');
+    proc = spawn('cmd.exe', ['/c', cmdLine], {
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } else {
+    proc = spawn(getCodexBin(), args, {
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  }
+
+  proc.stdin!.write(prompt);
+  proc.stdin!.end();
+
+  return { proc, outputPath, tempDir };
+}
+
+async function generateWithLocalProvider(
+  provider: 'claude' | 'codex',
+  prompt: string,
+  model?: string,
+): Promise<string> {
+  if (provider === 'claude') {
+    const proc = spawnClaude(prompt, model || 'claude-opus-4-6');
+    return await new Promise<string>((resolve, reject) => {
+      let stdout = '';
+      let stderr = '';
+      const timeout = setTimeout(() => {
+        proc.kill('SIGTERM');
+        setTimeout(() => proc.kill('SIGKILL'), 5000);
+      }, 120000);
+
+      proc.stdout!.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString();
+      });
+
+      proc.stderr!.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+
+      proc.on('close', (code) => {
+        clearTimeout(timeout);
+        if (code !== 0 && !stdout.trim()) {
+          reject(new Error(`claude CLI exited with code ${code}: ${stderr.slice(0, 500)}`));
+          return;
+        }
+        resolve(stdout);
+      });
+
+      proc.on('error', (err) => {
+        clearTimeout(timeout);
+        reject(err);
+      });
+    });
+  }
+
+  const { proc, outputPath, tempDir } = spawnCodex(prompt, model);
+  return await new Promise<string>((resolve, reject) => {
+    let stderr = '';
+    const timeout = setTimeout(() => {
+      proc.kill('SIGTERM');
+      setTimeout(() => proc.kill('SIGKILL'), 5000);
+    }, 120000);
+
+    proc.stderr!.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    proc.on('close', (code) => {
+      clearTimeout(timeout);
+      try {
+        const text = existsSync(outputPath) ? readFileSync(outputPath, 'utf-8') : '';
+        rmSync(tempDir, { recursive: true, force: true });
+        if (code !== 0 && !text.trim()) {
+          reject(new Error(`codex CLI exited with code ${code}: ${stderr.slice(0, 500)}`));
+          return;
+        }
+        resolve(text);
+      } catch (err) {
+        reject(err);
+      }
+    });
+
+    proc.on('error', (err) => {
+      clearTimeout(timeout);
+      rmSync(tempDir, { recursive: true, force: true });
+      reject(err);
+    });
+  });
+}
+
 // --- Routes ---
 
 // Health / status check
 app.get('/api/ai/status', (_req, res) => {
+  const status: Record<string, any> = {
+    connected: false,
+    authVerified: false,
+    claudeConnected: false,
+    codexConnected: false,
+  };
+
   try {
     const bin = getClaudeBin();
+    status.claudeBin = bin;
 
     // Quick auth test
     const isWin = process.platform === 'win32';
@@ -206,6 +369,39 @@ app.get('/api/ai/status', (_req, res) => {
   } catch (err) {
     res.json({
       connected: false,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    });
+  }
+});
+
+app.get('/api/codex/status', (_req, res) => {
+  try {
+    const bin = getCodexBin();
+    const isWin = process.platform === 'win32';
+
+    if (isWin) {
+      execFileSync('cmd.exe', ['/c', 'codex login status'], {
+        encoding: 'utf-8',
+        timeout: 15000,
+      });
+    } else {
+      execFileSync(bin, ['login', 'status'], {
+        encoding: 'utf-8',
+        timeout: 15000,
+      });
+    }
+
+    res.json({
+      connected: true,
+      bin,
+      authVerified: true,
+      provider: 'codex',
+    });
+  } catch (err) {
+    res.json({
+      connected: false,
+      authVerified: false,
+      provider: 'codex',
       error: err instanceof Error ? err.message : 'Unknown error',
     });
   }
@@ -269,6 +465,21 @@ app.post('/api/ai/generate', (req, res) => {
       proc.kill('SIGTERM');
     }
   });
+});
+
+app.post('/api/codex/generate', (req, res) => {
+  const { prompt, model } = req.body;
+  if (!prompt) return res.status(400).json({ error: 'prompt required' });
+
+  generateWithLocalProvider('codex', prompt, model || 'gpt-5.4')
+    .then((text) => {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.send(text);
+    })
+    .catch((err) => {
+      console.error('[codex error]', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to run codex' });
+    });
 });
 
 // --- gog (Google CLI) integration ---
@@ -523,32 +734,22 @@ CRITICAL RULES:
 
 Respond with ONLY the JSON object, no other text.`;
 
-    // Run Claude
     let aiResult = '';
     try {
-      const proc = spawnClaude(aiPrompt, 'claude-sonnet-4-20250514');
-      aiResult = await new Promise<string>((resolve, reject) => {
-        let stdout = '';
-        let stderr = '';
-        const timeout = setTimeout(() => { proc.kill('SIGTERM'); reject(new Error('AI timeout')); }, 120000);
-        proc.stdout!.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-        proc.stderr!.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-        proc.on('close', (code) => {
-          clearTimeout(timeout);
-          if (code !== 0 && !stdout.trim()) reject(new Error(`Claude exited ${code}: ${stderr.slice(0, 300)}`));
-          else resolve(stdout);
+      aiResult = await generateWithLocalProvider('claude', aiPrompt, 'claude-sonnet-4-20250514');
+    } catch (claudeErr) {
+      try {
+        aiResult = await generateWithLocalProvider('codex', aiPrompt, 'gpt-5.4');
+      } catch (aiErr) {
+        return res.json({
+          success: false,
+          rawDocText: allDocText.slice(0, 100000),
+          files: files.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType })),
+          imageFiles: imageFiles.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType })),
+          error: aiErr instanceof Error ? aiErr.message : 'AI extraction failed',
+          fallbackError: claudeErr instanceof Error ? claudeErr.message : 'Claude extraction failed',
         });
-        proc.on('error', (err) => { clearTimeout(timeout); reject(err); });
-      });
-    } catch (aiErr) {
-      // If AI fails, return raw data for frontend fallback
-      return res.json({
-        success: false,
-        rawDocText: allDocText.slice(0, 100000),
-        files: files.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType })),
-        imageFiles: imageFiles.map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType })),
-        error: aiErr instanceof Error ? aiErr.message : 'AI extraction failed',
-      });
+      }
     }
 
     // Parse AI response
