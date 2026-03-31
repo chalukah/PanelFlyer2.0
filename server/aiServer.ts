@@ -517,7 +517,7 @@ app.get('/api/gog/drive/ls', (req, res) => {
   const folderId = req.query.folderId as string;
   if (!folderId) return res.status(400).json({ error: 'folderId required' });
   try {
-    const output = runGog(['drive', 'ls', '--parent', folderId, '-j', '--results-only']);
+    const output = runGog(['drive', 'ls', '--parent', folderId, '-j', '--results-only', '--max', '100']);
     res.json(JSON.parse(output));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list folder' });
@@ -636,7 +636,7 @@ app.post('/api/gog/extract', async (req, res) => {
     }
 
     // 1. List all files in the folder
-    const filesRaw = runGog(['drive', 'ls', '--parent', folderId, '-j', '--results-only'], 20000);
+    const filesRaw = runGog(['drive', 'ls', '--parent', folderId, '-j', '--results-only', '--max', '100'], 20000);
     const files = JSON.parse(filesRaw) as Array<{ id: string; name: string; mimeType: string }>;
 
     // 2. Find Google Docs and export them as text
@@ -676,7 +676,7 @@ app.post('/api/gog/extract', async (req, res) => {
     let imageFiles: Array<{ id: string; name: string; mimeType: string }> = [];
     if (headshotFolderId) {
       try {
-        const hfRaw = runGog(['drive', 'ls', '--parent', headshotFolderId, '-j', '--results-only'], 15000);
+        const hfRaw = runGog(['drive', 'ls', '--parent', headshotFolderId, '-j', '--results-only', '--max', '100'], 15000);
         const hfFiles = JSON.parse(hfRaw) as Array<{ id: string; name: string; mimeType: string }>;
         imageFiles = hfFiles.filter(f => f.mimeType.startsWith('image/'));
       } catch { /* skip */ }
@@ -714,7 +714,7 @@ Extract the following as a JSON object. Be thorough — search ALL documents, ta
   "headerText": "Header text for the banner (e.g. 'Veterinary Business Institute Expert Panel')",
   "panelists": [
     {
-      "name": "Full name with Dr. prefix and credentials (e.g. 'Dr. Jessica Moore-Jones, DVM')",
+      "name": "Full name with credentials EXACTLY as written in the document — do NOT add Dr. prefix unless the document explicitly has it (e.g. 'Amelia Knight Pinkston, VMD', 'Bob Murtaugh, DVM, MS, DACVIM')",
       "firstName": "First name only without Dr.",
       "title": "Job title/role (e.g. 'Director', 'Founder & CEO', 'Practice Owner'). This is their ROLE, not credentials.",
       "org": "Organization/company/practice name (e.g. 'Unleashed Coaching and Consulting')",
@@ -735,11 +735,16 @@ CRITICAL RULES:
 Respond with ONLY the JSON object, no other text.`;
 
     let aiResult = '';
+    let aiProvider = 'claude';
     try {
       aiResult = await generateWithLocalProvider('claude', aiPrompt, 'claude-sonnet-4-20250514');
+      console.log('[gog extract] AI provider used: Claude');
     } catch (claudeErr) {
+      console.warn('[gog extract] Claude failed:', claudeErr instanceof Error ? claudeErr.message : claudeErr);
       try {
         aiResult = await generateWithLocalProvider('codex', aiPrompt, 'gpt-5.4');
+        aiProvider = 'codex';
+        console.log('[gog extract] AI provider used: Codex (fallback)');
       } catch (aiErr) {
         return res.json({
           success: false,

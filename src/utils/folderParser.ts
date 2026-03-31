@@ -144,7 +144,7 @@ ${docContent}
 ---
 
 Extract ALL panelists mentioned. For each panelist, you MUST find:
-- name: Full name with "Dr." prefix if they are a doctor, AND include credentials after name (e.g. "Dr. Dani McVety, DVM")
+- name: Full name with credentials EXACTLY as written in the document — do NOT add "Dr." prefix unless the document explicitly uses it. Include credentials after name (e.g. "Dani McVety, DVM", "Bob Murtaugh, DVM, MS, DACVIM")
 - firstName: First name only (without Dr.)
 - title: Their job title / role / position (e.g. "Founder & CEO", "Practice Owner", "Hospital Director", "Consultant, Coach, Educator", "Chief Strategy Officer"). This is NOT their credentials — this is what they DO.
 - org: Organization / company / practice / hospital / firm name they work at (e.g. "Ready Vet Go", "Smith Animal Hospital", "Keal Consulting", "ClearDent Group")
@@ -155,14 +155,14 @@ CRITICAL RULES:
 1. You MUST extract title AND org for every panelist. Look EVERYWHERE — tabs, tables, bullet points, paragraphs, bios, labeled fields. NEVER leave title or org empty if the info exists anywhere in the document.
 2. The "title" field should be their ROLE (e.g. "Founder & CEO", "Practice Owner", "Medical Director", "Financial Consultant") — NOT their degree credentials.
 3. The "org" field should be the NAME of their business/practice/hospital/company/firm.
-4. Include credentials like DVM, MBA, DACVIM, JD, CPA, LE, DDS etc. in the "name" field after their name (e.g. "Dr. John Smith, DVM, DACVIM").
+4. Include credentials like DVM, MBA, DACVIM, JD, CPA, LE, DDS etc. in the "name" field after their name (e.g. "John Smith, DVM, DACVIM"). Do NOT add "Dr." prefix — use the name exactly as it appears in the document.
 5. Information may be spread across MULTIPLE TABS and sections of the document. Cross-reference all tabs, Partner Details, and Promotional Materials to get complete data.
 6. Common patterns: "Title: ...", "Organization: ...", "Practice: ...", "Hospital: ...", "Company: ...", "Firm: ...", or just mentioned in a bio paragraph like "She is the founder of XYZ Hospital" or "CEO at ABC Corp".
 7. If the document has table data separated by "|", each column may represent different fields (name, title, org, email, etc.).
 8. Each "--- TAB: <name> ---" section usually contains that panelist's full details including their title and organization. Read each tab carefully.
 
 Respond ONLY with a JSON array, no other text. Example:
-[{"name":"Dr. John Smith, DVM","firstName":"John","title":"Founder & CEO","org":"Smith Animal Hospital","email":"john@example.com","phone":"555-1234"}]
+[{"name":"John Smith, DVM","firstName":"John","title":"Founder & CEO","org":"Smith Animal Hospital","email":"john@example.com","phone":"555-1234"}]
 
 If you cannot find any panelists, respond with: []`;
 
@@ -317,6 +317,24 @@ export function extractPanelistsFromDoc(docContent: string): ParsedPanelist[] {
 
 // ---------- extract panelists from filenames only ----------
 
+export function extractPanelistNameFromImageFileName(fileName: string): string | null {
+  const lower = fileName.toLowerCase();
+  if (/\b(qr|logo|banner|slide|thumbnail|zoom|flyer|poster|graphic|background|bg|icon|favicon|cover|template|event|panel)\b/i.test(lower)) return null;
+
+  let cleaned = fileName.replace(/\.[^.]+$/, '');
+  cleaned = cleaned.replace(/_+/g, ' ');
+  cleaned = cleaned.replace(/\b(?:head\s*shots?|headshots?|photos?|pictures?|pics?|portraits?|images?)\b/gi, ' ');
+  cleaned = cleaned.replace(/\b(?:vet|dental|law|aesthetic(?:s)?)\b[\s.-]*\d{1,2}[./-]\d{1,2}[./-]\d{2,4}.*$/i, '');
+  cleaned = cleaned.replace(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b.*$/, '');
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  const withoutPrefix = cleaned.replace(/^dr\.?\s*/i, '').trim();
+  const parts = withoutPrefix.split(/[\s,]+/).filter(Boolean);
+  if (parts.length < 2) return null;
+
+  return cleaned;
+}
+
 export function extractPanelistsFromFileNames(files: DriveFile[]): ParsedPanelist[] {
   const names = new Set<string>();
 
@@ -339,6 +357,10 @@ export function extractPanelistsFromFileNames(files: DriveFile[]): ParsedPanelis
     if (/registration\s*report/i.test(f.name) && !lower.includes('.csv')) {
       const name = f.name.split(/\s*[-–—]?\s*registration\s*report/i)[0]?.trim();
       if (name && name.length > 1 && !/^\d/.test(name)) names.add(name);
+    }
+    if (f.mimeType.startsWith('image/')) {
+      const name = extractPanelistNameFromImageFileName(f.name);
+      if (name) names.add(name);
     }
   }
 

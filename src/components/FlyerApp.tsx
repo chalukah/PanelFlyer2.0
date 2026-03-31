@@ -46,6 +46,7 @@ import {
   extractPanelistsFromDoc,
   extractPanelistsWithAI,
   extractPanelistsFromFileNames,
+  extractPanelistNameFromImageFileName,
   extractEventDetails,
   type ParsedPanelist,
 } from '../utils/folderParser';
@@ -251,7 +252,7 @@ export default function FlyerApp() {
   const [selectedBannerIds, setSelectedBannerIds] = useState<Set<string>>(new Set());
 
   // Modal
-  const [modalBannerIndex, setModalBannerIndex] = useState<number | null>(null);
+  const [modalBannerId, setModalBannerId] = useState<string | null>(null);
 
   // Google Drive import state
   const [driveUrl, setDriveUrl] = useState('');
@@ -492,7 +493,7 @@ export default function FlyerApp() {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowSettings(false);
-        setModalBannerIndex(null);
+        setModalBannerId(null);
       }
       // Ctrl/Cmd + Enter = Generate banners
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && panelists.length > 0 && !generating) {
@@ -666,7 +667,7 @@ export default function FlyerApp() {
       const useGog = await checkGogStatus();
 
       // === GOG: get folder name for topic/subtitle extraction ===
-      let gogTopicData: { panelName?: string; panelTopic?: string; panelSubtitle?: string; eventDate?: string; eventTime?: string; websiteUrl?: string; headerText?: string; zoomRegistrationUrl?: string } = {};
+      let gogTopicData: { panelName?: string; panelTopic?: string; panelSubtitle?: string; eventDate?: string; eventTime?: string; websiteUrl?: string; headerText?: string; zoomRegistrationUrl?: string; panelists?: Array<{ name: string; firstName: string; title: string; org: string; email?: string; phone?: string }> } = {};
       if (useGog) {
         try {
           setDriveStep('Reading folder metadata via gog + AI...');
@@ -687,6 +688,14 @@ export default function FlyerApp() {
               websiteUrl: result.websiteUrl,
               headerText: result.headerText,
               zoomRegistrationUrl: result.zoomRegistrationUrl,
+              panelists: result.panelists?.map(p => ({
+                name: p.name,
+                firstName: p.firstName || p.name.replace(/^Dr\.?\s*/i, '').split(/[\s,]/)[0],
+                title: p.title,
+                org: p.org,
+                email: p.email,
+                phone: p.phone,
+              })),
             };
           }
         } catch (gogErr) {
@@ -763,6 +772,32 @@ export default function FlyerApp() {
         parsedPanelists = sanitizeParsedPanelists(extractPanelistsFromFileNames(files), files);
       }
 
+      // Merge gog AI panelists into parsedPanelists — gog data (title/org) takes priority
+      if (gogTopicData.panelists && gogTopicData.panelists.length > 0) {
+        if (parsedPanelists.length === 0) {
+          // No client-side extraction worked — use gog panelists directly
+          parsedPanelists = gogTopicData.panelists.map(p => ({
+            name: p.name,
+            firstName: p.firstName,
+            title: p.title,
+            org: p.org,
+            email: p.email || '',
+            phone: p.phone || '',
+          }));
+        } else {
+          // Enrich existing parsedPanelists with gog data (fill in missing title/org)
+          for (const pp of parsedPanelists) {
+            const gogMatch = gogTopicData.panelists.find(gp => panelistNamesLooselyMatch(pp.name, gp.name));
+            if (gogMatch) {
+              if (!pp.title && gogMatch.title) pp.title = gogMatch.title;
+              if (!pp.org && gogMatch.org) pp.org = gogMatch.org;
+              if (!pp.email && gogMatch.email) pp.email = gogMatch.email;
+              if (!pp.phone && gogMatch.phone) pp.phone = gogMatch.phone;
+            }
+          }
+        }
+      }
+
       const eventDetails = extractEventDetails(docText, parsed.folderName);
 
       // Auto-detect vertical from doc/folder content
@@ -782,7 +817,7 @@ export default function FlyerApp() {
         handleVerticalChange(detectedVertical);
         // Re-apply gog data that handleVerticalChange may have overwritten
         if (gogTopicData.panelName) setPanelName(gogTopicData.panelName);
-        if (gogTopicData.websiteUrl) setWebsiteUrl(gogTopicData.websiteUrl);
+        // Website URL is always from vertical config — don't override with extracted URL
         if (gogTopicData.headerText) setHeaderText(gogTopicData.headerText);
       }
 
@@ -801,23 +836,43 @@ export default function FlyerApp() {
         return listFolderContents(id);
       };
 
+      // Helper: filter to likely headshot images (reject banners, logos, QR codes, zoom images, etc.)
+      const isLikelyHeadshot = (f: DriveFile): boolean => {
+        const lower = f.name.toLowerCase();
+        // Reject obvious non-headshot images
+        if (/\b(banner|zoom|logo|qr|slide|thumbnail|flyer|poster|graphic|background|bg|icon|favicon|cover|template|event|panel)\b/i.test(lower)) return false;
+        // Reject very generic image names that are likely not headshots
+        if (/^(image|img|photo|pic|picture|screenshot|screen\s*shot)\d*\.\w+$/i.test(lower)) return false;
+        return f.mimeType.startsWith('image/');
+      };
+
       if (parsed.headhotsFolderId) {
         setDriveStep('Downloading headshots...');
         const headshotFiles = await listSubfolder(parsed.headhotsFolderId);
+        // In the headshots folder, trust ALL images (they were placed there intentionally)
         imageFiles = headshotFiles.filter((f) => f.mimeType.startsWith('image/'));
       }
 
-      // Also check for images in root folder (some events don't have a headshots subfolder)
-      if (imageFiles.length === 0) {
+      // Also check root folder images, but only likely headshots (filter out banners, zoom, logos, etc.)
+      if (imageFiles.length < parsedPanelists.length) {
         setDriveStep('Looking for headshot images...');
-        imageFiles = files.filter((f) => f.mimeType.startsWith('image/'));
+        const rootImages = files.filter(isLikelyHeadshot);
+        // Deduplicate by file id
+        const existingIds = new Set(imageFiles.map(f => f.id));
+        for (const img of rootImages) {
+          if (!existingIds.has(img.id)) imageFiles.push(img);
+        }
       }
 
       // Also check subfolders that might contain headshots (e.g. date-named folders)
-      if (imageFiles.length === 0 && parsed.bannersFolderId) {
+      if (imageFiles.length < parsedPanelists.length && parsed.bannersFolderId) {
         try {
           const subFiles = await listSubfolder(parsed.bannersFolderId);
-          imageFiles = subFiles.filter((f) => f.mimeType.startsWith('image/'));
+          const subImages = subFiles.filter(isLikelyHeadshot);
+          const existingIds = new Set(imageFiles.map(f => f.id));
+          for (const img of subImages) {
+            if (!existingIds.has(img.id)) imageFiles.push(img);
+          }
         } catch { /* skip */ }
       }
 
@@ -869,7 +924,7 @@ export default function FlyerApp() {
           const imgNameLower = img.name.toLowerCase();
           let matched = false;
 
-          // Try last name first (more unique, avoids "Dani" matching "Danielle")
+          // Try last name first (most unique, avoids "Dani" matching "Danielle")
           for (const p of parsedPanelists) {
             const lastLower = getLastName(p.name);
             if (lastLower.length > 2 && imgNameLower.includes(lastLower) && !headshotMap.has(p.name)) {
@@ -879,7 +934,7 @@ export default function FlyerApp() {
             }
           }
 
-          // Fallback: try first name match but require word boundary (exact word, not substring)
+          // Fallback: try first name match with word boundary (exact word, not substring)
           if (!matched) {
             for (const p of parsedPanelists) {
               const firstLower = getFirstName(p);
@@ -891,7 +946,7 @@ export default function FlyerApp() {
             }
           }
 
-          // Last fallback: loose first name includes
+          // Fallback: loose first name includes
           if (!matched) {
             for (const p of parsedPanelists) {
               const firstLower = getFirstName(p);
@@ -903,13 +958,23 @@ export default function FlyerApp() {
             }
           }
 
-          // Last resort: assign to next panelist without a headshot
+          // Fallback: use panelistNamesLooselyMatch against the inferred name from the image file
           if (!matched) {
-            const unmatched = parsedPanelists.find(p => !headshotMap.has(p.name));
-            if (unmatched) {
-              headshotMap.set(unmatched.name, dataUrl);
+            const inferredName = extractPanelistNameFromImageFileName(img.name);
+            if (inferredName) {
+              for (const p of parsedPanelists) {
+                if (!headshotMap.has(p.name) && panelistNamesLooselyMatch(p.name, inferredName)) {
+                  headshotMap.set(p.name, dataUrl);
+                  matched = true;
+                  break;
+                }
+              }
             }
           }
+
+          // NOTE: We intentionally do NOT force-assign unmatched images to panelists.
+          // Unmatched images (zoom banners, event graphics, etc.) should be skipped,
+          // not randomly assigned to the next panelist without a headshot.
         } catch {
           // skip failed downloads
         }
@@ -994,7 +1059,8 @@ export default function FlyerApp() {
       // Other fields: gog > legacy
       const finalDate = gogTopicData.eventDate || eventDetails.eventDate || '';
       const finalTime = gogTopicData.eventTime || eventDetails.eventTime || '';
-      const finalWebsite = gogTopicData.websiteUrl || eventDetails.websiteUrl || '';
+      // Always use the vertical config's website URL — never override with extracted URL
+      const finalWebsite = verticalConfig.websiteUrl;
       if (finalDate) setEventDate(finalDate);
       if (finalTime) setEventTime(finalTime);
       if (finalWebsite) setWebsiteUrl(finalWebsite);
@@ -1184,6 +1250,13 @@ export default function FlyerApp() {
     arr.push(b);
     bannersByPanelist.set(b.panelistName, arr);
   }
+
+  const modalBannerIndex = modalBannerId !== null ? banners.findIndex((b) => b.id === modalBannerId) : null;
+
+  const handleModalNavigate = useCallback((idx: number) => {
+    if (idx < 0 || idx >= banners.length) return;
+    setModalBannerId(banners[idx].id);
+  }, [banners]);
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark' : ''}`} style={{ backgroundColor: bg, color: textPrimary, '--input-bg': inputBg, '--input-border': inputBorder, '--input-text': textPrimary, '--v-accent': vColors.accent, '--v-accent-soft': vColors.accentSoft, '--v-c2': VERTICAL_COLORS['thriving-dentist'].accent, '--v-c3': VERTICAL_COLORS['dominate-law'].accent, '--v-c4': VERTICAL_COLORS['aesthetics'].accent } as React.CSSProperties}>
@@ -1966,7 +2039,7 @@ export default function FlyerApp() {
                               <BannerThumbnail
                                 key={banner.id}
                                 banner={banner}
-                                onClick={() => setModalBannerIndex(globalIdx)}
+                                onClick={() => setModalBannerId(banner.id)}
                                 onDownload={() => downloadBanner(banner)}
                                 onToggleSelect={() => toggleBannerSelection(banner.id)}
                                 selected={selectedBannerIds.has(banner.id)}
@@ -2250,12 +2323,12 @@ export default function FlyerApp() {
       )}
 
       {/* ===== BANNER MODAL ===== */}
-      {modalBannerIndex !== null && (
+      {modalBannerIndex !== null && modalBannerIndex >= 0 && (
         <BannerModal
           banners={banners}
           currentIndex={modalBannerIndex}
-          onClose={() => setModalBannerIndex(null)}
-          onNavigate={setModalBannerIndex}
+          onClose={() => setModalBannerId(null)}
+          onNavigate={handleModalNavigate}
           onDownload={downloadBanner}
           downloading={downloading}
           darkMode={darkMode}
