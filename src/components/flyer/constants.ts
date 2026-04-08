@@ -18,7 +18,7 @@ export type PanelistFormData = {
   qrCodes: QrCodes;
 };
 
-export type PanelistCount = 2 | 3 | 4;
+export type PanelistCount = 2 | 3 | 4 | 5 | 6;
 
 // ============================================================
 // Pink accent constant

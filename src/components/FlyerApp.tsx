@@ -80,6 +80,7 @@ import { VerticalIcon, VERTICAL_EMOJI } from './flyer/VerticalIcon';
 import { PanelistRow } from './flyer/PanelistRow';
 import { BannerThumbnail } from './flyer/BannerThumbnail';
 import { BannerModal } from './flyer/BannerModal';
+import { ShortLinksManager } from './flyer/ShortLinksManager';
 
 function normalizePanelistName(name: string): string {
   return name
@@ -293,7 +294,7 @@ export default function FlyerApp() {
   const [claudeTesting, setClaudeTesting] = useState(false);
   const [claudeChecking, setClaudeChecking] = useState(true); // starts true — checking on load
   const [cliConnected, setCliConnected] = useState(false);
-  const [cliProvider, setCliProvider] = useState<'claude' | 'codex' | undefined>(undefined);
+  const [cliProvider, setCliProvider] = useState<'claude' | undefined>(undefined);
   const [showKey, setShowKey] = useState(false);
   const [aiEnhancing, setAiEnhancing] = useState(false);
 
@@ -1475,6 +1476,24 @@ export default function FlyerApp() {
               </div>
             </div>
 
+            {/* QR Code Generator — fallback for panelists missing QR codes */}
+            {panelists.length > 0 && (
+              <ShortLinksManager
+                panelists={panelists}
+                selectedVertical={selectedVertical}
+                eventDate={eventDate}
+                darkMode={darkMode}
+                textPrimary={textPrimary}
+                textSecondary={textSecondary}
+                surface={surface}
+                border={border}
+                vColors={vColors}
+                onUpdatePanelist={updatePanelist}
+                onRegenerateBanners={generateAllBanners}
+                showToast={showToast}
+              />
+            )}
+
             {/* Detected Data section moved to right panel */}
 
             {/* Manual Entry (collapsed by default, secondary flow) */}
@@ -2160,7 +2179,7 @@ export default function FlyerApp() {
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-4" style={{ background: darkMode ? 'rgba(34,197,94,0.1)' : '#f0fdf4', border: `1px solid ${darkMode ? '#22c55e50' : '#bbf7d0'}` }}>
                 <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
                 <span className="text-xs font-semibold" style={{ color: darkMode ? '#4ade80' : '#15803d' }}>
-                  {cliConnected ? (cliProvider === 'codex' ? 'Connected via OpenAI Codex' : 'Connected via Claude Code CLI') : 'Connected via API Key'}
+                  {cliConnected ? 'Connected via Claude Code CLI' : 'Connected via API Key'}
                 </span>
               </div>
             )}
@@ -2196,13 +2215,12 @@ export default function FlyerApp() {
                     <div>
                       <p className="text-xs font-semibold" style={{ color: textPrimary }}>Install a local AI CLI</p>
                       <code className="text-[10px] px-1.5 py-0.5 rounded mt-1 block" style={{ background: darkMode ? '#333' : '#e5e7eb', color: textSecondary }}>npm install -g @anthropic-ai/claude-code</code>
-                      <code className="text-[10px] px-1.5 py-0.5 rounded mt-1 block" style={{ background: darkMode ? '#333' : '#e5e7eb', color: textSecondary }}>npm install -g @openai/codex</code>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5" style={{ background: vColors.accent, color: '#fff' }}>2</div>
                     <div>
-                      <p className="text-xs font-semibold" style={{ color: textPrimary }}>Run <code className="px-1 rounded text-[10px]" style={{ background: darkMode ? '#333' : '#e5e7eb' }}>claude</code> or <code className="px-1 rounded text-[10px]" style={{ background: darkMode ? '#333' : '#e5e7eb' }}>codex login</code> and complete login</p>
+                      <p className="text-xs font-semibold" style={{ color: textPrimary }}>Run <code className="px-1 rounded text-[10px]" style={{ background: darkMode ? '#333' : '#e5e7eb' }}>claude</code> and complete login</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -2217,7 +2235,7 @@ export default function FlyerApp() {
                 <div className="flex items-center gap-2">
                   <div className={`w-2.5 h-2.5 rounded-full ${cliConnected ? 'bg-green-500' : claudeChecking ? 'bg-yellow-400 animate-pulse' : 'bg-red-400'}`} />
                   <span className="text-xs" style={{ color: textSecondary }}>
-                    {cliConnected ? (cliProvider === 'codex' ? 'OpenAI Codex connected and authenticated' : 'Claude CLI connected and authenticated') : claudeChecking ? 'Checking...' : 'Not connected'}
+                    {cliConnected ? 'Claude CLI connected and authenticated' : claudeChecking ? 'Checking...' : 'Not connected'}
                   </span>
                 </div>
 

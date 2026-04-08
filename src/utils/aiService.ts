@@ -11,7 +11,7 @@
 import { withRetry } from './retry';
 
 export type AIMode = 'cli' | 'sdk' | 'none';
-export type LocalCLIProvider = 'claude' | 'codex';
+export type LocalCLIProvider = 'claude';
 
 export type AIServiceStatus = {
   mode: AIMode;
@@ -20,9 +20,7 @@ export type AIServiceStatus = {
   cliBin?: string;
   cliProvider?: LocalCLIProvider;
   claudeConnected: boolean;
-  codexConnected: boolean;
   claudeBin?: string;
-  codexBin?: string;
   error?: string;
 };
 
@@ -63,38 +61,24 @@ export async function checkAIStatus(forceRefresh = false): Promise<AIServiceStat
   if (_cachedStatus && !forceRefresh) return _cachedStatus;
 
   let claudeConnected = false;
-  let codexConnected = false;
   let claudeBin: string | undefined;
-  let codexBin: string | undefined;
   let error: string | undefined;
 
   try {
-    const [claudeRes, codexRes] = await Promise.allSettled([
-      fetch('/api/ai/status', { signal: AbortSignal.timeout(35000) }),
-      fetch('/api/codex/status', { signal: AbortSignal.timeout(15000) }),
-    ]);
-
-    if (claudeRes.status === 'fulfilled' && claudeRes.value.ok) {
-      const data = await claudeRes.value.json();
+    const claudeRes = await fetch('/api/ai/status', { signal: AbortSignal.timeout(35000) });
+    if (claudeRes.ok) {
+      const data = await claudeRes.json();
       claudeConnected = data.connected === true && data.authVerified === true;
       claudeBin = data.bin || data.claudeBin;
-      error = error || data.error;
-    }
-
-    if (codexRes.status === 'fulfilled' && codexRes.value.ok) {
-      const data = await codexRes.value.json();
-      codexConnected = data.connected === true && data.authVerified === true;
-      codexBin = data.bin || data.codexBin;
-      error = error || data.error;
+      error = data.error;
     }
   } catch {
     // Local AI server not running
   }
 
   const sdkConfigured = Boolean(getApiKey());
-  const cliConnected = claudeConnected || codexConnected;
-  const cliProvider: LocalCLIProvider | undefined = claudeConnected ? 'claude' : codexConnected ? 'codex' : undefined;
-  const cliBin = cliProvider === 'claude' ? claudeBin : codexBin;
+  const cliConnected = claudeConnected;
+  const cliProvider: LocalCLIProvider | undefined = claudeConnected ? 'claude' : undefined;
 
   const mode: AIMode = cliConnected ? 'cli' : sdkConfigured ? 'sdk' : 'none';
 
@@ -102,12 +86,10 @@ export async function checkAIStatus(forceRefresh = false): Promise<AIServiceStat
     mode,
     cliConnected,
     sdkConfigured,
-    cliBin,
+    cliBin: claudeBin,
     cliProvider,
     claudeConnected,
-    codexConnected,
     claudeBin,
-    codexBin,
     error,
   };
   return _cachedStatus;
@@ -132,29 +114,16 @@ export async function generateText(
   } = {}
 ): Promise<string> {
   const status = await checkAIStatus();
-  const localModes: LocalCLIProvider[] = [];
-
-  if (options.preferMode === 'claude') {
-    localModes.push('claude', 'codex');
-  } else if (options.preferMode === 'codex') {
-    localModes.push('codex', 'claude');
-  } else if (status.claudeConnected) {
-    localModes.push('claude');
-    if (status.codexConnected) localModes.push('codex');
-  } else if (status.codexConnected) {
-    localModes.push('codex');
-  }
-
-  const modes: Array<LocalCLIProvider | 'sdk'> = options.preferMode === 'sdk'
-    ? ['sdk', ...localModes]
-    : [...localModes, 'sdk'];
+  const modes: Array<'claude' | 'sdk'> = options.preferMode === 'sdk'
+    ? ['sdk', ...(status.claudeConnected ? ['claude' as const] : [])]
+    : [...(status.claudeConnected ? ['claude' as const] : []), 'sdk'];
 
   let lastError: unknown;
 
   for (const mode of modes) {
     try {
-      if ((mode === 'claude' || mode === 'codex') && ((mode === 'claude' && status.claudeConnected) || (mode === 'codex' && status.codexConnected))) {
-        return await generateViaCLI(mode, prompt, options);
+      if (mode === 'claude' && status.claudeConnected) {
+        return await generateViaCLI('claude', prompt, options);
       }
       if (mode === 'sdk' && getApiKey()) {
         return await generateViaSDK(prompt, options);
@@ -165,7 +134,7 @@ export async function generateText(
     }
   }
 
-  throw lastError || new Error('No AI mode available. Connect Claude Code, OpenAI Codex, or add an API key in Settings.');
+  throw lastError || new Error('No AI mode available. Connect Claude Code or add an Anthropic API key in Settings.');
 }
 
 // ——————————————————————————————————————
@@ -173,15 +142,13 @@ export async function generateText(
 // ——————————————————————————————————————
 
 async function generateViaCLI(
-  provider: LocalCLIProvider,
+  _provider: LocalCLIProvider,
   prompt: string,
   options: { model?: string; context?: string; signal?: AbortSignal; onChunk?: (text: string) => void }
 ): Promise<string> {
   return withRetry(async () => {
-    const endpoint = provider === 'codex' ? '/api/codex/generate' : '/api/ai/generate';
-    const model = provider === 'codex'
-      ? (options.model && !options.model.startsWith('claude-') ? options.model : 'gpt-5.4')
-      : options.model;
+    const endpoint = '/api/ai/generate';
+    const model = options.model;
 
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -196,7 +163,7 @@ async function generateViaCLI(
 
     if (!res.ok) {
       const err = await res.text().catch(() => 'Unknown error');
-      throw new Error(`${provider} CLI error (${res.status}): ${err}`);
+      throw new Error(`Claude CLI error (${res.status}): ${err}`);
     }
 
     if (options.onChunk && res.body) {

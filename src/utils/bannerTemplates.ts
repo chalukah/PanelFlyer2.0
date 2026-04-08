@@ -496,8 +496,10 @@ function isTwoPanelist(data: BannerData): boolean {
   return (data.allPanelists?.length || 0) <= 2;
 }
 
-function getPanelistVariant(data: BannerData): '2P' | '3P' | '4P' {
+function getPanelistVariant(data: BannerData): '2P' | '3P' | '4P' | '5P' | '6P' {
   const count = data.allPanelists?.length || 0;
+  if (count >= 6) return '6P';
+  if (count === 5) return '5P';
   if (count >= 4) return '4P';
   if (count === 3) return '3P';
   return '2P';
@@ -781,6 +783,28 @@ function renderPanelistCard4P(p: { name: string; title: string; org: string; hea
   </div>`;
 }
 
+function renderPanelistCard5P(p: { name: string; title: string; org: string; headshotUrl: string }, textColor: string, subtitleColor: string, theme: BannerTheme): string {
+  const title = cleanTitle(p.title);
+  return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;max-width:200px;">
+    <div style="width:175px;height:175px;border-radius:50%;border:5px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 3px ${theme.neonBorder}40,0 6px 20px rgba(0,0,0,0.4);background:url('${p.headshotUrl}') center 15%/cover no-repeat;">
+    </div>
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:20px;font-weight:800;color:${textColor};text-align:center;margin-top:10px;line-height:1.2;max-width:190px;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+    ${title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:14px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:3px;line-height:1.3;max-width:190px;">${title}</div>` : ''}
+    ${p.org ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:12px;font-weight:500;color:${subtitleColor};text-align:center;margin-top:2px;line-height:1.3;opacity:0.85;max-width:190px;">${p.org}</div>` : ''}
+  </div>`;
+}
+
+function renderPanelistCard6P(p: { name: string; title: string; org: string; headshotUrl: string }, textColor: string, subtitleColor: string, theme: BannerTheme): string {
+  const title = cleanTitle(p.title);
+  return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;max-width:165px;">
+    <div style="width:145px;height:145px;border-radius:50%;border:4px solid ${theme.accent};overflow:hidden;box-shadow:0 0 0 2px ${theme.neonBorder}40,0 5px 16px rgba(0,0,0,0.4);background:url('${p.headshotUrl}') center 15%/cover no-repeat;">
+    </div>
+    <div style="font-family:Montserrat,Arial,sans-serif;font-size:17px;font-weight:800;color:${textColor};text-align:center;margin-top:8px;line-height:1.2;max-width:155px;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+    ${title ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:12px;font-weight:600;color:${subtitleColor};text-align:center;margin-top:3px;line-height:1.3;max-width:155px;">${title}</div>` : ''}
+    ${p.org ? `<div style="font-family:Montserrat,Arial,sans-serif;font-size:11px;font-weight:500;color:${subtitleColor};text-align:center;margin-top:1px;line-height:1.3;opacity:0.85;max-width:155px;">${p.org}</div>` : ''}
+  </div>`;
+}
+
 // ——————————————————————————————————————————————
 // B1 — Intro (per-panelist, text left + photo right, grid layout)
 // ——————————————————————————————————————————————
@@ -884,12 +908,14 @@ function generateB2(data: BannerData): string {
 
   const variant = getPanelistVariant(data);
   const panelistsHtml = panelists.map(p =>
+    variant === '6P' ? renderPanelistCard6P(p, '#ffffff', t.subtitleColor, t) :
+    variant === '5P' ? renderPanelistCard5P(p, '#ffffff', t.subtitleColor, t) :
     variant === '4P' ? renderPanelistCard4P(p, '#ffffff', t.subtitleColor, t) :
     variant === '2P' ? renderPanelistCard2P(p, '#ffffff', t.subtitleColor, t) :
     renderPanelistCard3P(p, '#ffffff', t.subtitleColor, t)
   ).join('');
 
-  const gap = variant === '2P' ? '80px' : '15px';
+  const gap = variant === '2P' ? '80px' : variant === '5P' || variant === '6P' ? '8px' : '15px';
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -905,8 +931,10 @@ function generateB2(data: BannerData): string {
       <div style="font-family:Montserrat,Arial,sans-serif;font-size:24px;font-weight:700;color:${t.lime};margin-bottom:10px;">${dedupName}</div>
       <div style="font-family:Montserrat,Arial,sans-serif;font-size:40px;font-weight:900;color:#ffffff;line-height:1.15;">${dedupTopic}${dedupSubtitle ? ': ' + dedupSubtitle : ''}</div>
     </div>
-    <div style="display:flex;justify-content:center;gap:${gap};flex:1;align-items:center;margin-top:8px;">
-      ${panelistsHtml}
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;margin-top:8px;">
+      <div style="display:flex;justify-content:center;gap:${gap};align-items:flex-start;">
+        ${panelistsHtml}
+      </div>
     </div>
     <div style="position:relative;display:flex;align-items:center;min-height:155px;padding-top:12px;flex-shrink:0;">
       <div style="position:absolute;left:0;top:50%;transform:translateY(-50%);text-align:center;">
@@ -937,12 +965,14 @@ function generateB3(data: BannerData): string {
 
   const variant = getPanelistVariant(data);
   const panelistsHtml = panelists.map(p =>
+    variant === '6P' ? renderPanelistCard6P(p, t.b3TextColor, t.subtitleColorLight, t) :
+    variant === '5P' ? renderPanelistCard5P(p, t.b3TextColor, t.subtitleColorLight, t) :
     variant === '4P' ? renderPanelistCard4P(p, t.b3TextColor, t.subtitleColorLight, t) :
     variant === '2P' ? renderPanelistCard2P(p, t.b3TextColor, t.subtitleColorLight, t) :
     renderPanelistCard3P(p, t.b3TextColor, t.subtitleColorLight, t)
   ).join('');
 
-  const gap = variant === '2P' ? '80px' : '15px';
+  const gap = variant === '2P' ? '80px' : variant === '5P' || variant === '6P' ? '8px' : '15px';
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -959,7 +989,7 @@ function generateB3(data: BannerData): string {
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:36px;font-weight:900;color:#ffffff;line-height:1.2;max-width:800px;">${dedupTopic}${dedupSubtitle ? ': ' + dedupSubtitle : ''}</div>
   </div>
   <div style="flex:1;background:#ffffff;display:flex;align-items:center;justify-content:center;padding:18px 36px;">
-    <div style="display:flex;justify-content:center;gap:${gap};width:100%;">${panelistsHtml}</div>
+    <div style="display:flex;justify-content:center;gap:${gap};width:100%;align-items:flex-start;">${panelistsHtml}</div>
   </div>
   <div style="background:${t.headerBg};padding:20px 36px;display:flex;align-items:center;position:relative;flex-shrink:0;min-height:155px;">
     <div style="position:absolute;left:36px;top:50%;transform:translateY(-50%);text-align:center;">
@@ -1048,12 +1078,14 @@ function generateB5(data: BannerData): string {
 
   const variant = getPanelistVariant(data);
   const panelistsHtml = panelists.map(p =>
+    variant === '6P' ? renderPanelistCard6P(p, '#ffffff', t.lime, t) :
+    variant === '5P' ? renderPanelistCard5P(p, '#ffffff', t.lime, t) :
     variant === '4P' ? renderPanelistCard4P(p, '#ffffff', t.lime, t) :
     variant === '2P' ? renderPanelistCard2P(p, '#ffffff', t.lime, t) :
     renderPanelistCard3P(p, '#ffffff', t.lime, t)
   ).join('');
 
-  const gap = variant === '2P' ? '80px' : '15px';
+  const gap = variant === '2P' ? '80px' : variant === '5P' || variant === '6P' ? '8px' : '15px';
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -1073,8 +1105,10 @@ function generateB5(data: BannerData): string {
     <div style="font-family:Montserrat,Arial,sans-serif;font-size:22px;font-weight:600;color:rgba(255,255,255,0.85);max-width:780px;">${dedupTopic}${dedupSubtitle ? ': ' + dedupSubtitle : ''}</div>
   </div>
   <div style="height:4px;background:linear-gradient(90deg,${t.separatorColor},${t.separatorColor}1a);flex-shrink:0;"></div>
-  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px 40px;gap:${gap};">
-    ${panelistsHtml}
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px 40px;">
+    <div style="display:flex;justify-content:center;gap:${gap};align-items:flex-start;">
+      ${panelistsHtml}
+    </div>
   </div>
   <div style="height:4px;background:linear-gradient(90deg,${t.separatorColor}1a,${t.separatorColor},${t.separatorColor}1a);flex-shrink:0;"></div>
   <div style="background:${t.darkBg}80;padding:18px 36px;position:relative;display:flex;align-items:center;flex-shrink:0;min-height:155px;">

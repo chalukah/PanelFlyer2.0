@@ -4,7 +4,7 @@
  */
 
 const CLIENT_ID = '480513141175-1l3o1oaaubm3b0glg0c6ddtpcmifcuj7.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents';
+const SCOPES = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/spreadsheets';
 
 // Types for gapi / GIS (minimal declarations so TS is happy)
 declare const gapi: {
