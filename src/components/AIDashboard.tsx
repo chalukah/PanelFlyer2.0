@@ -394,7 +394,7 @@ function DashboardSidebar({
             <span className="font-medium">{aiConnected ? 'AI Connected' : 'AI Offline'}</span>
           </div>
           <p className="text-[10px] mt-0.5 opacity-75">
-            {aiConnected ? 'Claude CLI ready' : 'Run npm run ai-server'}
+            {aiConnected ? 'Local AI CLI ready' : 'Run npm run server'}
           </p>
         </div>
       </div>

@@ -11,12 +11,16 @@
 import { withRetry } from './retry';
 
 export type AIMode = 'cli' | 'sdk' | 'none';
+export type LocalCLIProvider = 'claude';
 
 export type AIServiceStatus = {
   mode: AIMode;
   cliConnected: boolean;
   sdkConfigured: boolean;
   cliBin?: string;
+  cliProvider?: LocalCLIProvider;
+  claudeConnected: boolean;
+  claudeBin?: string;
   error?: string;
 };
 
@@ -56,26 +60,38 @@ export function clearApiKey() {
 export async function checkAIStatus(forceRefresh = false): Promise<AIServiceStatus> {
   if (_cachedStatus && !forceRefresh) return _cachedStatus;
 
-  let cliConnected = false;
-  let cliBin: string | undefined;
+  let claudeConnected = false;
+  let claudeBin: string | undefined;
+  let error: string | undefined;
 
-  // Check CLI availability
   try {
-    const res = await fetch('/api/ai/status', { signal: AbortSignal.timeout(35000) });
-    if (res.ok) {
-      const data = await res.json();
-      cliConnected = data.connected === true && data.authVerified === true;
-      cliBin = data.bin;
+    const claudeRes = await fetch('/api/ai/status', { signal: AbortSignal.timeout(35000) });
+    if (claudeRes.ok) {
+      const data = await claudeRes.json();
+      claudeConnected = data.connected === true && data.authVerified === true;
+      claudeBin = data.bin || data.claudeBin;
+      error = data.error;
     }
   } catch {
-    // Server not running
+    // Local AI server not running
   }
 
   const sdkConfigured = Boolean(getApiKey());
+  const cliConnected = claudeConnected;
+  const cliProvider: LocalCLIProvider | undefined = claudeConnected ? 'claude' : undefined;
 
   const mode: AIMode = cliConnected ? 'cli' : sdkConfigured ? 'sdk' : 'none';
 
-  _cachedStatus = { mode, cliConnected, sdkConfigured, cliBin };
+  _cachedStatus = {
+    mode,
+    cliConnected,
+    sdkConfigured,
+    cliBin: claudeBin,
+    cliProvider,
+    claudeConnected,
+    claudeBin,
+    error,
+  };
   return _cachedStatus;
 }
 
@@ -94,20 +110,20 @@ export async function generateText(
     context?: string;
     signal?: AbortSignal;
     onChunk?: (text: string) => void;
-    preferMode?: AIMode;
+    preferMode?: AIMode | LocalCLIProvider;
   } = {}
 ): Promise<string> {
   const status = await checkAIStatus();
-  const modes: AIMode[] = options.preferMode
-    ? [options.preferMode, ...(options.preferMode === 'cli' ? ['sdk'] : ['cli']) as AIMode[]]
-    : status.cliConnected ? ['cli', 'sdk'] : ['sdk', 'cli'];
+  const modes: Array<'claude' | 'sdk'> = options.preferMode === 'sdk'
+    ? ['sdk', ...(status.claudeConnected ? ['claude' as const] : [])]
+    : [...(status.claudeConnected ? ['claude' as const] : []), 'sdk'];
 
   let lastError: unknown;
 
   for (const mode of modes) {
     try {
-      if (mode === 'cli' && status.cliConnected) {
-        return await generateViaCLI(prompt, options);
+      if (mode === 'claude' && status.claudeConnected) {
+        return await generateViaCLI('claude', prompt, options);
       }
       if (mode === 'sdk' && getApiKey()) {
         return await generateViaSDK(prompt, options);
@@ -118,7 +134,7 @@ export async function generateText(
     }
   }
 
-  throw lastError || new Error('No AI mode available. Connect Claude CLI or add an API key in Settings.');
+  throw lastError || new Error('No AI mode available. Connect Claude Code or add an Anthropic API key in Settings.');
 }
 
 // ——————————————————————————————————————
@@ -126,16 +142,20 @@ export async function generateText(
 // ——————————————————————————————————————
 
 async function generateViaCLI(
+  _provider: LocalCLIProvider,
   prompt: string,
   options: { model?: string; context?: string; signal?: AbortSignal; onChunk?: (text: string) => void }
 ): Promise<string> {
   return withRetry(async () => {
-    const res = await fetch('/api/ai/generate', {
+    const endpoint = '/api/ai/generate';
+    const model = options.model;
+
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         prompt,
-        model: options.model,
+        model,
         context: options.context,
       }),
       signal: options.signal,
@@ -143,7 +163,7 @@ async function generateViaCLI(
 
     if (!res.ok) {
       const err = await res.text().catch(() => 'Unknown error');
-      throw new Error(`CLI AI error (${res.status}): ${err}`);
+      throw new Error(`Claude CLI error (${res.status}): ${err}`);
     }
 
     if (options.onChunk && res.body) {

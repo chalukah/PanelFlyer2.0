@@ -5,9 +5,10 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider } from './contexts/AuthContext';
 import { AuthGate } from './components/AuthGate';
 import { usePanelStore } from './panelStore';
-import { Palette, FileCode, LayoutDashboard } from 'lucide-react';
+import { Palette, FileCode, FolderPlus } from 'lucide-react';
+import { GDriveFolderCreator } from './components/GDriveFolderCreator';
 
-type Tab = 'generator' | 'templates';
+type Tab = 'generator' | 'templates' | 'gdrive-folder';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState<Tab>('generator');
@@ -30,6 +31,12 @@ function AppContent() {
           icon={<FileCode className="w-3.5 h-3.5" />}
           label="Template Editor"
         />
+        <TabButton
+          active={activeTab === 'gdrive-folder'}
+          onClick={() => setActiveTab('gdrive-folder')}
+          icon={<FolderPlus className="w-3.5 h-3.5" />}
+          label="GDrive Folder Creation"
+        />
       </div>
 
       {/* Tab content */}
@@ -39,6 +46,9 @@ function AppContent() {
         </ErrorBoundary>
         <ErrorBoundary fallbackTitle="Template Editor crashed">
           {activeTab === 'templates' && <TemplateManager darkMode={isDark} />}
+        </ErrorBoundary>
+        <ErrorBoundary fallbackTitle="GDrive Folder Creation crashed">
+          {activeTab === 'gdrive-folder' && <GDriveFolderCreator />}
         </ErrorBoundary>
       </div>
     </div>

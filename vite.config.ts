@@ -11,6 +11,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/api/codex': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+        secure: false,
+      },
       '/api/gog': {
         target: 'http://localhost:3002',
         changeOrigin: true,
