@@ -16,7 +16,10 @@ let gogAvailable: boolean | null = null;
 export async function checkGogStatus(): Promise<boolean> {
   if (gogAvailable !== null) return gogAvailable;
   try {
-    const resp = await fetch('/api/gog/status');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const resp = await fetch('/api/gog/status', { signal: controller.signal });
+    clearTimeout(timer);
     if (!resp.ok) { gogAvailable = false; return false; }
     const data = await resp.json();
     gogAvailable = data.connected === true;

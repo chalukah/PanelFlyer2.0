@@ -129,17 +129,23 @@ export function clearStoredToken(): void {
 async function refreshToken(): Promise<boolean> {
   if (!tokenClient) return false;
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => { if (!settled) { settled = true; resolve(ok); } };
+    // Safety timeout: if Google's callback never fires (popup blocked, OAuth client disabled,
+    // user closes the window), don't leave callers hanging forever.
+    const timer = setTimeout(() => finish(false), 20000);
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPES,
       callback: (resp) => {
-        if (resp.error || !resp.access_token) { resolve(false); return; }
+        clearTimeout(timer);
+        if (resp.error || !resp.access_token) { finish(false); return; }
         accessToken = resp.access_token;
         try {
           localStorage.setItem('gd_access_token', accessToken);
           localStorage.setItem('gd_token_expiry', String(Date.now() + 3600 * 1000));
         } catch { /* ignore */ }
-        resolve(true);
+        finish(true);
       },
     });
     tokenClient!.requestAccessToken();
@@ -156,9 +162,15 @@ function isAuthError(err: unknown): boolean {
 
 // Wrapper that detects 401/403 and auto-refreshes token once before failing
 async function gapiRequest(opts: { path: string; params?: Record<string, string> }): Promise<{ result: unknown }> {
+  const withTimeout = <T>(p: Promise<T>, ms: number, label: string): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`GOOGLE_REQUEST_TIMEOUT: ${label}`)), ms);
+      p.then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
+    });
+
   const attempt = async () => {
     try {
-      const resp = await gapi.client.request(opts);
+      const resp = await withTimeout(gapi.client.request(opts) as unknown as Promise<{ result: unknown }>, 30000, opts.path);
       const r = resp.result as { error?: { code?: number; message?: string } };
       if (r?.error?.code === 401 || r?.error?.code === 403) {
         throw { status: r.error.code, result: resp.result };

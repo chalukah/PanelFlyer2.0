@@ -29,6 +29,11 @@ import {
   type BannerTheme,
   BANNER_THEMES,
 } from '../utils/bannerTemplates';
+import {
+  BANNER_TEMPLATE_SETS,
+  DEFAULT_TEMPLATE_SET_ID,
+} from '../utils/bannerTemplateSets';
+import { TemplateSetPicker } from './flyer/TemplateSetPicker';
 import { VERTICALS, getVerticalConfig, type VerticalId } from '../utils/verticalConfig';
 import {
   initGoogleAuth,
@@ -233,6 +238,7 @@ export default function FlyerApp() {
   // Internal form state (populated by Drive import or manual entry)
   const [headerText, setHeaderText] = useState('Veterinary Business Institute Expert Panel');
   const [selectedTheme, setSelectedTheme] = useState<BannerTheme>(BANNER_THEMES[0]);
+  const [selectedTemplateSetId, setSelectedTemplateSetId] = useState<string>(DEFAULT_TEMPLATE_SET_ID);
   const [panelName, setPanelName] = useState(verticalConfig.panelNameDefault);
   const [panelTopic, setPanelTopic] = useState('');
   const [panelSubtitle, setPanelSubtitle] = useState('');
@@ -254,6 +260,9 @@ export default function FlyerApp() {
 
   // Modal
   const [modalBannerId, setModalBannerId] = useState<string | null>(null);
+
+  // Track in-flight banner-reveal timeouts so we can cancel them when regenerating
+  const revealTimeoutsRef = useRef<number[]>([]);
 
   // Google Drive import state
   const [driveUrl, setDriveUrl] = useState('');
@@ -386,10 +395,16 @@ export default function FlyerApp() {
 
   // Generate all banners with staggered animation
   const generateAllBanners = useCallback(() => {
+    // Always cancel in-flight reveal timers before starting (or bailing)
+    for (const id of revealTimeoutsRef.current) clearTimeout(id);
+    revealTimeoutsRef.current = [];
+
     const activePanelists = panelists.filter(p => !disabledPanelistIds.has(p.id));
     if (activePanelists.length === 0) {
       setBanners([]);
+      setVisibleBannerIds(new Set());
       setGenerating(false);
+      setGenProgress(0);
       return;
     }
     const incomplete = activePanelists.filter(p => !p.name.trim());
@@ -444,6 +459,7 @@ export default function FlyerApp() {
         zoomRegistrationUrl: p.zoomUrl,
         verticalConfig,
         theme: selectedTheme,
+        templateSetId: selectedTemplateSetId,
       };
 
       allBanners.push(...generateBannersForPanelist(data));
@@ -453,15 +469,32 @@ export default function FlyerApp() {
     setSelectedPanelistFilter('all');
     setSelectedBannerType('all');
 
-    // Staggered reveal animation
-    allBanners.forEach((b, i) => {
-      setTimeout(() => {
-        setVisibleBannerIds((prev) => new Set([...prev, b.id]));
-        setGenProgress(((i + 1) / allBanners.length) * 100);
-        if (i === allBanners.length - 1) setGenerating(false);
-      }, 100 * i);
-    });
-  }, [panelists, disabledPanelistIds, headerText, panelName, panelTopic, panelSubtitle, eventDate, eventTime, websiteUrl, verticalConfig, selectedTheme]);
+    // Cancel any in-flight reveal timers from a previous run so stale IDs
+    // don't leak into visibleBannerIds (would keep new banners invisible).
+    for (const id of revealTimeoutsRef.current) clearTimeout(id);
+    revealTimeoutsRef.current = [];
+
+    if (allBanners.length === 0) {
+      setGenerating(false);
+      setGenProgress(0);
+      return;
+    }
+
+    // Reveal all banners immediately so regeneration (on text edit, toggle, etc.)
+    // never leaves thumbnails stuck at opacity:0. CSS transition still handles
+    // the fade-in smoothly.
+    setVisibleBannerIds(new Set(allBanners.map(b => b.id)));
+    setGenProgress(100);
+    setGenerating(false);
+  }, [panelists, disabledPanelistIds, headerText, panelName, panelTopic, panelSubtitle, eventDate, eventTime, websiteUrl, verticalConfig, selectedTheme, selectedTemplateSetId]);
+
+  // Cleanup reveal timers on unmount
+  useEffect(() => {
+    return () => {
+      for (const id of revealTimeoutsRef.current) clearTimeout(id);
+      revealTimeoutsRef.current = [];
+    };
+  }, []);
 
   // Auto-regenerate banners after a panelist is removed
   useEffect(() => {
@@ -773,10 +806,12 @@ export default function FlyerApp() {
         parsedPanelists = sanitizeParsedPanelists(extractPanelistsFromFileNames(files), files);
       }
 
-      // Merge gog AI panelists into parsedPanelists — gog data (title/org) takes priority
+      // Merge gog AI panelists into parsedPanelists.
+      // Rule: gog reads ALL docs in one AI pass and is usually the more complete source.
+      // - If browser extraction missed panelists that gog found, ADD them.
+      // - Always enrich browser panelists with gog's title/org/email/phone when missing.
       if (gogTopicData.panelists && gogTopicData.panelists.length > 0) {
         if (parsedPanelists.length === 0) {
-          // No client-side extraction worked — use gog panelists directly
           parsedPanelists = gogTopicData.panelists.map(p => ({
             name: p.name,
             firstName: p.firstName,
@@ -786,7 +821,7 @@ export default function FlyerApp() {
             phone: p.phone || '',
           }));
         } else {
-          // Enrich existing parsedPanelists with gog data (fill in missing title/org)
+          // Enrich existing
           for (const pp of parsedPanelists) {
             const gogMatch = gogTopicData.panelists.find(gp => panelistNamesLooselyMatch(pp.name, gp.name));
             if (gogMatch) {
@@ -794,6 +829,21 @@ export default function FlyerApp() {
               if (!pp.org && gogMatch.org) pp.org = gogMatch.org;
               if (!pp.email && gogMatch.email) pp.email = gogMatch.email;
               if (!pp.phone && gogMatch.phone) pp.phone = gogMatch.phone;
+            }
+          }
+          // Append gog panelists that the browser extraction missed
+          for (const gp of gogTopicData.panelists) {
+            const alreadyPresent = parsedPanelists.some(pp => panelistNamesLooselyMatch(pp.name, gp.name));
+            if (!alreadyPresent) {
+              console.log('[drive import] gog found extra panelist missing from browser extraction:', gp.name);
+              parsedPanelists.push({
+                name: gp.name,
+                firstName: gp.firstName,
+                title: gp.title,
+                org: gp.org,
+                email: gp.email || '',
+                phone: gp.phone || '',
+              });
             }
           }
         }
@@ -1376,6 +1426,21 @@ export default function FlyerApp() {
                   );
                 })}
               </div>
+            </div>
+
+            {/* Section 2.5: Template Design picker (always visible) */}
+            <div className="anim-fade-up rounded-2xl p-5 border-[2px] transition-all duration-300 hover:shadow-sm" style={{ ...cardStyle, animationDelay: '0.15s' }}>
+              <TemplateSetPicker
+                sets={BANNER_TEMPLATE_SETS}
+                selectedId={selectedTemplateSetId}
+                onChange={(id) => {
+                  setSelectedTemplateSetId(id);
+                  if (banners.length > 0) {
+                    setTimeout(() => generateAllBanners(), 0);
+                  }
+                }}
+                darkMode={darkMode}
+              />
             </div>
 
             {/* Section 3: Drive Folder Import */}

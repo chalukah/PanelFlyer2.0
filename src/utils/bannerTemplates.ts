@@ -1,5 +1,6 @@
 import { type VerticalConfig, getVerticalConfig } from './verticalConfig';
 import { TD_LOGO_DATA_URI, DL_LOGO_DATA_URI, BOA_LOGO_DATA_URI } from './logoData';
+import { getTemplateSet } from './bannerTemplateSets';
 
 // ——————————————————————————————————————————————
 // Types
@@ -346,6 +347,7 @@ export type BannerData = {
   zoomRegistrationUrl?: string;
   verticalConfig?: VerticalConfig;
   theme?: BannerTheme;
+  templateSetId?: string;
 };
 
 export type GeneratedBanner = {
@@ -362,7 +364,7 @@ export type GeneratedBanner = {
 // ——————————————————————————————————————————————
 
 /** Strip emojis and promotional filler from topic text */
-function cleanTopic(topic: string): string {
+export function cleanTopic(topic: string): string {
   return topic
     // Remove emoji characters
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, '')
@@ -394,7 +396,7 @@ function ordinalSuffix(d: number): string {
 }
 
 /** Convert "WEDNESDAY, JANUARY 15, 2025" → "WEDNESDAY, JANUARY 15TH, 2025" (add ordinal suffix to day only) */
-function formatDateOrdinal(dateStr: string): string {
+export function formatDateOrdinal(dateStr: string): string {
   const clean = cleanDate(dateStr);
   // Match: MONTH_NAME <space> DAY_NUMBER <comma or end>
   // This avoids matching numbers inside times like "8:00"
@@ -409,7 +411,7 @@ function formatDateOrdinal(dateStr: string): string {
 }
 
 /** Simplify time range to start time: "8:00 PM – 9:00 PM EST" → "8:00 PM EST" */
-function formatTime(timeStr: string): string {
+export function formatTime(timeStr: string): string {
   // Extract just the start time + timezone, dropping the range
   const m = timeStr.match(/^(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\s*[-–].+?(EST|CST|MST|PST|ET|CT|MT|PT)\s*$/i);
   if (m) return `${m[1]} ${m[2]}`;
@@ -417,7 +419,7 @@ function formatTime(timeStr: string): string {
 }
 
 /** Format date for B1 (title case): "Wednesday, January 15th, 2025" */
-function formatDateTitleCase(dateStr: string): string {
+export function formatDateTitleCase(dateStr: string): string {
   const ordinal = formatDateOrdinal(dateStr);
   // Title-case each word, but preserve ordinal suffixes (ST, ND, RD, TH) as lowercase
   return ordinal
@@ -426,7 +428,7 @@ function formatDateTitleCase(dateStr: string): string {
     .replace(/(\d+)(St|Nd|Rd|Th)/g, (_m, num, suf) => `${num}${suf.toLowerCase()}`);
 }
 
-function getQrUrl(data: BannerData, bannerType?: BannerType): string {
+export function getQrUrl(data: BannerData, bannerType?: BannerType): string {
   // Only show QR if user uploaded one for this specific banner type
   if (bannerType && data.qrCodeUrls?.[bannerType]) {
     return data.qrCodeUrls[bannerType]!;
@@ -434,14 +436,14 @@ function getQrUrl(data: BannerData, bannerType?: BannerType): string {
   return '';
 }
 
-function qrPlaceholder(size: number, borderColor: string): string {
+export function qrPlaceholder(size: number, borderColor: string): string {
   return `<div style="width:${size}px;height:${size}px;border:3px dashed ${borderColor};border-radius:12px;display:flex;align-items:center;justify-content:center;opacity:0.4;">
     <svg width="${size * 0.5}" height="${size * 0.5}" viewBox="0 0 24 24" fill="none" stroke="${borderColor}" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="4" height="4" rx="0.5"/><line x1="21" y1="14" x2="21" y2="21"/><line x1="14" y1="21" x2="21" y2="21"/></svg>
   </div>`;
 }
 
 /** Strip credential suffixes from title (DVM, DDS, MD, JD, MBA, etc.) */
-function cleanTitle(title: string): string {
+export function cleanTitle(title: string): string {
   if (!title) return '';
   // Remove leading credential patterns like "DVM, Founder" → "Founder"
   return title
@@ -451,7 +453,7 @@ function cleanTitle(title: string): string {
 }
 
 /** Deduplicate: if panelName and panelTopic are identical or one contains the other, separate them */
-function deduplicateFields(data: BannerData): { panelName: string; panelTopic: string; panelSubtitle: string } {
+export function deduplicateFields(data: BannerData): { panelName: string; panelTopic: string; panelSubtitle: string } {
   let name = (data.panelName || '').trim();
   let topic = cleanTopic(data.panelTopic || '');
   let subtitle = data.panelSubtitle ? cleanTopic(data.panelSubtitle) : '';
@@ -488,7 +490,7 @@ function deduplicateFields(data: BannerData): { panelName: string; panelTopic: s
   return { panelName: name, panelTopic: topic, panelSubtitle: subtitle };
 }
 
-function getTheme(data: BannerData): BannerTheme {
+export function getTheme(data: BannerData): BannerTheme {
   return data.theme || BANNER_THEMES[0];
 }
 
@@ -496,7 +498,7 @@ function isTwoPanelist(data: BannerData): boolean {
   return (data.allPanelists?.length || 0) <= 2;
 }
 
-function getPanelistVariant(data: BannerData): '2P' | '3P' | '4P' | '5P' | '6P' {
+export function getPanelistVariant(data: BannerData): '2P' | '3P' | '4P' | '5P' | '6P' {
   const count = data.allPanelists?.length || 0;
   if (count >= 6) return '6P';
   if (count === 5) return '5P';
@@ -505,7 +507,7 @@ function getPanelistVariant(data: BannerData): '2P' | '3P' | '4P' | '5P' | '6P' 
   return '2P';
 }
 
-function uid(): string {
+export function uid(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
@@ -686,7 +688,7 @@ const AESTHETICS_BG_FLEX = `<div style="position:absolute;inset:0;z-index:2;poin
 </div>`;
 
 /** Returns the correct institute logo SVG for the current vertical, with unique gradient IDs */
-function getLogoSvg(data: BannerData, u: string, w = 180, h = 60): string {
+export function getLogoSvg(data: BannerData, u: string, w = 180, h = 60): string {
   const vc = data.verticalConfig;
   // For vet (or no vertical), use the full-detail VBI logo
   if (!vc || vc.id === 'vet') return vbiLogoSvg(u, w, h);
@@ -714,7 +716,7 @@ function getLogoSvg(data: BannerData, u: string, w = 180, h = 60): string {
 }
 
 /** Returns the original (dark) brand logo for light backgrounds like B3 */
-function getLogoDark(data: BannerData, w = 180, h = 60): string {
+export function getLogoDark(data: BannerData, w = 180, h = 60): string {
   const vc = data.verticalConfig;
   const logoMap: Record<string, string> = {
     'thriving-dentist': TD_LOGO_DATA_URI,
@@ -809,7 +811,7 @@ function renderPanelistCard6P(p: { name: string; title: string; org: string; hea
 // B1 — Intro (per-panelist, text left + photo right, grid layout)
 // ——————————————————————————————————————————————
 
-function generateB1(data: BannerData): string {
+export function generateB1(data: BannerData): string {
   const u = uid();
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B1');
@@ -899,7 +901,7 @@ function generateB1(data: BannerData): string {
 // B2 — Introduction to Panel 1 (all panelists, dark bg with photos)
 // ——————————————————————————————————————————————
 
-function generateB2(data: BannerData): string {
+export function generateB2(data: BannerData): string {
   const u = uid();
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B2');
@@ -956,7 +958,7 @@ function generateB2(data: BannerData): string {
 // B3 — Introduction to Panel 2 (all panelists, white panel bg, yellow footer)
 // ——————————————————————————————————————————————
 
-function generateB3(data: BannerData): string {
+export function generateB3(data: BannerData): string {
   const u = uid();
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B3');
@@ -1010,7 +1012,7 @@ function generateB3(data: BannerData): string {
 // B4 — One More Day (per-panelist, countdown layout)
 // ——————————————————————————————————————————————
 
-function generateB4(data: BannerData): string {
+export function generateB4(data: BannerData): string {
   const u = uid();
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B4');
@@ -1069,7 +1071,7 @@ function generateB4(data: BannerData): string {
 // B5 — Happening Today (all panelists, red dot + urgency)
 // ——————————————————————————————————————————————
 
-function generateB5(data: BannerData): string {
+export function generateB5(data: BannerData): string {
   const u = uid();
   const t = getTheme(data);
   const qrUrl = getQrUrl(data, 'B5');
@@ -1136,57 +1138,53 @@ function generateB5(data: BannerData): string {
 
 export function generateBannersForPanelist(data: BannerData): GeneratedBanner[] {
   const safeName = data.panelistName.replace(/[^a-zA-Z0-9]/g, '_');
-  const banners: GeneratedBanner[] = [];
+  const set = getTemplateSet(data.templateSetId);
+  const gen = set.generators;
 
-  // The Intro (per-panelist)
-  banners.push({
-    id: `b1_${safeName}_${uid()}`,
-    type: 'B1',
-    label: `The Intro - ${data.panelistName}`,
-    fileName: `The_Intro_${safeName}`,
-    html: generateB1(data),
-    panelistName: data.panelistName,
-  });
-
-  // Introduction to Panel One (all panelists)
-  banners.push({
-    id: `b2_${safeName}_${uid()}`,
-    type: 'B2',
-    label: `Introduction to Panel One - ${data.panelistName}`,
-    fileName: `Introduction_to_Panel_One_${safeName}`,
-    html: generateB2(data),
-    panelistName: data.panelistName,
-  });
-
-  // Introduction to Panel Two (all panelists)
-  banners.push({
-    id: `b3_${safeName}_${uid()}`,
-    type: 'B3',
-    label: `Introduction to Panel Two - ${data.panelistName}`,
-    fileName: `Introduction_to_Panel_Two_${safeName}`,
-    html: generateB3(data),
-    panelistName: data.panelistName,
-  });
-
-  // One More Day (per-panelist)
-  banners.push({
-    id: `b4_${safeName}_${uid()}`,
-    type: 'B4',
-    label: `One More Day - ${data.panelistName}`,
-    fileName: `One_More_Day_${safeName}`,
-    html: generateB4(data),
-    panelistName: data.panelistName,
-  });
-
-  // Happening Today (all panelists)
-  banners.push({
-    id: `b5_${safeName}_${uid()}`,
-    type: 'B5',
-    label: `Happening Today - ${data.panelistName}`,
-    fileName: `Happening_Today_${safeName}`,
-    html: generateB5(data),
-    panelistName: data.panelistName,
-  });
-
-  return banners;
+  // Stable IDs keyed on panelist+type (no uid() suffix) so React reuses the
+  // iframe DOM nodes across regenerations — srcDoc updates in place instead
+  // of the iframe fully unmounting + remounting, which was causing blank
+  // thumbnails on text-edit regenerate.
+  return [
+    {
+      id: `b1_${safeName}`,
+      type: 'B1',
+      label: `The Intro - ${data.panelistName}`,
+      fileName: `The_Intro_${safeName}`,
+      html: gen.B1(data),
+      panelistName: data.panelistName,
+    },
+    {
+      id: `b2_${safeName}`,
+      type: 'B2',
+      label: `Introduction to Panel One - ${data.panelistName}`,
+      fileName: `Introduction_to_Panel_One_${safeName}`,
+      html: gen.B2(data),
+      panelistName: data.panelistName,
+    },
+    {
+      id: `b3_${safeName}`,
+      type: 'B3',
+      label: `Introduction to Panel Two - ${data.panelistName}`,
+      fileName: `Introduction_to_Panel_Two_${safeName}`,
+      html: gen.B3(data),
+      panelistName: data.panelistName,
+    },
+    {
+      id: `b4_${safeName}`,
+      type: 'B4',
+      label: `One More Day - ${data.panelistName}`,
+      fileName: `One_More_Day_${safeName}`,
+      html: gen.B4(data),
+      panelistName: data.panelistName,
+    },
+    {
+      id: `b5_${safeName}`,
+      type: 'B5',
+      label: `Happening Today - ${data.panelistName}`,
+      fileName: `Happening_Today_${safeName}`,
+      html: gen.B5(data),
+      panelistName: data.panelistName,
+    },
+  ];
 }

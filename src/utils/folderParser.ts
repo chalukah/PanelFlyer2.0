@@ -203,7 +203,7 @@ If you cannot find any panelists, respond with: []`;
   // 1. Try any local CLI provider first (Claude, then Codex)
   try {
     const { generateText } = await import('./aiService');
-    const text = await generateText(prompt, { preferMode: 'claude', model: 'claude-opus-4-6' });
+    const text = await generateText(prompt, { preferMode: 'claude', model: 'claude-opus-4-7' });
     const result = parseAIResponse(text);
     if (result) return result;
   } catch {

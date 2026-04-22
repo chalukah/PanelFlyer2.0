@@ -165,14 +165,14 @@ async function generateWithLocalProvider(
   prompt: string,
   model?: string,
 ): Promise<string> {
-  const proc = spawnClaude(prompt, model || 'claude-opus-4-6');
+  const proc = spawnClaude(prompt, model || 'claude-opus-4-7');
   return await new Promise<string>((resolve, reject) => {
     let stdout = '';
     let stderr = '';
     const timeout = setTimeout(() => {
       proc.kill('SIGTERM');
       setTimeout(() => proc.kill('SIGKILL'), 5000);
-    }, 120000);
+    }, 300000);
 
     proc.stdout!.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -201,16 +201,28 @@ async function generateWithLocalProvider(
 // --- Routes ---
 
 // Health / status check
+// Cache status check so we don't spawn `claude` on every poll.
+// A successful auth is stable for the process lifetime; only retry on failure or after cache TTL.
+let _cachedClaudeStatus: { ok: boolean; bin?: string; error?: string; at: number } | null = null;
+const CLAUDE_STATUS_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 app.get('/api/ai/status', (_req, res) => {
-  const status: Record<string, any> = {
-    connected: false,
-    authVerified: false,
-    claudeConnected: false,
-  };
+  const now = Date.now();
+  // Serve from cache if fresh and successful. Re-check sooner if previous check failed.
+  if (_cachedClaudeStatus) {
+    const ageMs = now - _cachedClaudeStatus.at;
+    const fresh = _cachedClaudeStatus.ok ? ageMs < CLAUDE_STATUS_TTL_MS : ageMs < 30_000;
+    if (fresh) {
+      return res.json(
+        _cachedClaudeStatus.ok
+          ? { connected: true, bin: _cachedClaudeStatus.bin, authVerified: true, cached: true }
+          : { connected: false, bin: _cachedClaudeStatus.bin, authVerified: false, error: _cachedClaudeStatus.error, cached: true }
+      );
+    }
+  }
 
   try {
     const bin = getClaudeBin();
-    status.claudeBin = bin;
 
     // Quick auth test
     const isWin = process.platform === 'win32';
@@ -223,18 +235,17 @@ app.get('/api/ai/status', (_req, res) => {
 
     try {
       const testArgs = ['--print', '--output-format', 'text', '--no-session-persistence', '--dangerously-skip-permissions'];
-      let testResult: string;
 
       if (isWin) {
         const cmdLine = ['claude', ...testArgs].join(' ');
-        testResult = execFileSync('cmd.exe', ['/c', cmdLine], {
+        execFileSync('cmd.exe', ['/c', cmdLine], {
           encoding: 'utf-8',
           timeout: 30000,
           env: testEnv,
           input: 'reply ok',
         });
       } else {
-        testResult = execFileSync(bin, testArgs, {
+        execFileSync(bin, testArgs, {
           encoding: 'utf-8',
           timeout: 30000,
           env: testEnv,
@@ -242,20 +253,24 @@ app.get('/api/ai/status', (_req, res) => {
         });
       }
 
+      _cachedClaudeStatus = { ok: true, bin, at: now };
       res.json({ connected: true, bin, authVerified: true });
     } catch (authErr) {
-      // Binary found but auth test failed
+      const errMsg = authErr instanceof Error ? authErr.message : 'Auth test failed — run `claude` in your terminal to log in';
+      _cachedClaudeStatus = { ok: false, bin, error: errMsg, at: now };
       res.json({
         connected: false,
         bin,
         authVerified: false,
-        error: authErr instanceof Error ? authErr.message : 'Auth test failed — run `claude` in your terminal to log in',
+        error: errMsg,
       });
     }
   } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Unknown error';
+    _cachedClaudeStatus = { ok: false, error: errMsg, at: now };
     res.json({
       connected: false,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: errMsg,
     });
   }
 });
@@ -267,7 +282,7 @@ app.post('/api/ai/generate', (req, res) => {
   const { prompt, model } = req.body;
   if (!prompt) return res.status(400).json({ error: 'prompt required' });
 
-  const selectedModel = model || 'claude-opus-4-6';
+  const selectedModel = model || 'claude-opus-4-7';
 
   let proc: ReturnType<typeof spawn>;
   try {
@@ -474,6 +489,14 @@ app.post('/api/gog/extract', async (req, res) => {
           folderTopic = withoutDate;
         }
       }
+      // Reject marketing-headline folder names as hints for panelTopic/panelName
+      const MARKETING_FOLDER_RE = /^(?:panel alert|join us|announcing|don['’]t miss|register now|save your seat|free live|attention|calling all|[⚠⏱🎯📊💡🔥📣🎙⏰])/i;
+      if (MARKETING_FOLDER_RE.test(folderTopic)) {
+        console.log('[gog extract] Folder name looks like marketing headline — ignoring as topic hint');
+        folderTopic = '';
+        folderSubtitle = '';
+        folderPanelName = '';
+      }
       console.log('[gog extract] Parsed folder name → panelName:', folderPanelName, '| topic:', folderTopic, '| subtitle:', folderSubtitle);
     }
 
@@ -530,10 +553,8 @@ app.post('/api/gog/extract', async (req, res) => {
     // 5. Use Claude AI to extract all banner data from the combined doc text
     const aiPrompt = `You are extracting ALL information needed to generate event promotional banners from Google Drive documents.
 
-IMPORTANT — The Google Drive FOLDER NAME is: "${folderName}"
-The folder name typically contains the FULL panel topic including both the main title and subtitle. For example:
-- "Leading Through Change Practical Leadership for a Post-Pandemic Veterinary World" → panelTopic: "Leading Through Change", panelSubtitle: "Practical Leadership for a Post-Pandemic Veterinary World"
-- "Rebuilding the Law Firm for the AI Era" → panelTopic: "Rebuilding the Law Firm for the AI Era", panelSubtitle: ""
+The Google Drive FOLDER NAME is: "${folderName}"
+⚠ The folder name is only a WEAK hint. It may be a marketing headline (e.g. "Panel Alert for Veterinary Owners..."), a date-prefixed topic (e.g. "15th Jan - Veterinary Ownership & Leadership Panel – Leading Through Change"), or just a topic string. TRUST THE DOCUMENTS FIRST, then fall back to the folder name only if docs don't have the field.
 
 Here is the content of ALL documents found in the event folder:
 ---
@@ -546,9 +567,9 @@ Image files available: ${imageFiles.map(f => f.name).join(', ')}
 Extract the following as a JSON object. Be thorough — search ALL documents, tabs, sections, tables, and bios:
 
 {
-  "panelName": "The panel/event series name (e.g. 'Veterinary Ownership & Leadership Panel', 'Thriving Dentist Annual Expert Panel')",
-  "panelTopic": "The MAIN topic/title (short, e.g. 'Leading Through Change'). Do NOT include promotional CTA text.",
-  "panelSubtitle": "The descriptive subtitle or tagline that expands on the topic (e.g. 'Practical Leadership for a Post-Pandemic Veterinary World'). This is the longer description that goes below the main title. Look for it in document headings, quoted text, landing page copy, or promotional materials. If none found, leave empty string.",
+  "panelName": "The formal panel SERIES name (e.g. 'Veterinary Client Experience Panel', 'Veterinary Ownership & Leadership Panel', 'Thriving Dentist Annual Expert Panel'). This is a noun phrase ending in 'Panel' or 'Summit' or similar. It is NEVER a call-to-action or marketing headline.",
+  "panelTopic": "The MAIN overall topic for the ENTIRE panel discussion — applies to ALL panelists together (e.g. 'Cost-Based Anger in Veterinary Clients', 'Leading Through Change'). This is NOT any individual speaker's session title or talking point.",
+  "panelSubtitle": "Optional longer tagline describing the topic (e.g. 'Practical Leadership for a Post-Pandemic Veterinary World'). Often appears after a colon in the topic, or as a descriptive line below the main title. If none, empty string.",
   "eventDate": "Full date string (e.g. 'WEDNESDAY, JANUARY 15, 2025')",
   "eventTime": "Time with timezone (e.g. '8:00 PM – 9:00 PM EST')",
   "websiteUrl": "Website URL if found",
@@ -558,8 +579,8 @@ Extract the following as a JSON object. Be thorough — search ALL documents, ta
     {
       "name": "Full name with credentials EXACTLY as written in the document — do NOT add Dr. prefix unless the document explicitly has it (e.g. 'Amelia Knight Pinkston, VMD', 'Bob Murtaugh, DVM, MS, DACVIM')",
       "firstName": "First name only without Dr.",
-      "title": "Job title/role (e.g. 'Director', 'Founder & CEO', 'Practice Owner'). This is their ROLE, not credentials.",
-      "org": "Organization/company/practice name (e.g. 'Unleashed Coaching and Consulting')",
+      "title": "Job title/role ONLY — the part BEFORE any '@' separator in a 'Current Position and Organization' field. Examples: 'Founder, Integrative Health & Life Coach, Veterinarian' (from 'Founder, Integrative Health & Life Coach, Veterinarian @ Life Boost with Amelia'), 'Veterinary Specialist, Educator, Leader, and Consultant' (from a field with no '@'). Never contains the word 'at' or '@'.",
+      "org": "Organization name ONLY if explicitly stated in the doc — usually the part AFTER '@' in 'Current Position and Organization', or a standalone org line in the bio. If the panelist's entry has no '@' separator AND no explicit org name written anywhere, return EMPTY STRING. Do NOT invent an org, do NOT infer from email domain, do NOT use the event host organization (e.g. 'Veterinary Business Institute') as the panelist's org.",
       "email": "Email if found",
       "phone": "Phone if found",
       "headshotMatch": "Best matching image filename from the available images (e.g. 'jessica_moore_jones.jpg')"
@@ -568,18 +589,38 @@ Extract the following as a JSON object. Be thorough — search ALL documents, ta
 }
 
 CRITICAL RULES:
-1. THE FOLDER NAME IS YOUR BEST SOURCE FOR THE TOPIC. Parse the folder name "${folderName}" to extract BOTH panelTopic (short main title) and panelSubtitle (longer descriptive tagline). The folder name usually concatenates them. For example "Leading Through Change Practical Leadership for a Post-Pandemic Veterinary World" should give panelTopic="Leading Through Change" and panelSubtitle="Practical Leadership for a Post-Pandemic Veterinary World". Also cross-reference with document headings, quoted text, "Topic:" labels to confirm.
-2. Every panelist MUST have title and org. Search bios, tables, Partner Details, Promotional Materials, all documents.
-3. Match each panelist to their most likely headshot image by comparing names to filenames.
-4. Do NOT include CTA/marketing text in panelTopic (no "Join us", "Save your seat", "Free live panel", "Register now").
-5. Look through ALL documents — information may be spread across Partner Details, Promotional Materials, and other docs.
+
+1. panelName MUST be a formal series name — usually ending in "Panel", "Summit", "Roundtable", "Forum". It is a short (3–8 word) noun phrase. If you only see a marketing headline in the folder name, DO NOT use it as panelName. Instead search the docs for the actual series name (it appears in invite docs, promo emails, schedule tabs, landing copy).
+   REJECT AS panelName: anything starting with "Panel Alert", "Join us", "Announcing", "Don't miss", "Register now", "Save your seat", "Free live", "⚠", "🎯", or any call-to-action phrasing.
+
+2. panelTopic MUST be the ONE topic shared by the whole panel, not an individual panelist's session title. Red flags that mean a string is NOT the panelTopic:
+   - It starts with an emoji (⏱ 🎯 📊 💡 🔥) — these are per-speaker session titles in promo content
+   - It appears in a list of 3–5 bulleted items near a single panelist's bio — that's a discussion-points list, not the overall topic
+   - It reads as advice or action ("Fix X", "Stop Y", "Build Z") — panelTopics are thematic statements ("Cost-Based Anger in Veterinary Clients", "Leading Through Change")
+   Look for panelTopic in: doc headings, landing page copy, invite emails ("join us to discuss TOPIC"), Topic: labels, quoted titles.
+
+3. Only if BOTH panelName and panelTopic are absent from the docs may you parse the folder name "${folderName}". In that case, if the folder name has a " - " or " – " separator, treat the LEFT part as panelName and the RIGHT part as panelTopic. If no separator, use the folder name as panelTopic and leave panelName empty.
+
+4. TITLE vs ORG parsing — CRITICAL:
+   - Documents commonly use a "Current Position and Organization" field formatted as "Title @ Org" or "Title at Org". SPLIT ON THE '@' or ' at ' separator: the part BEFORE is title, AFTER is org.
+   - If the field has NO '@' (example: "Current Position and Organization - Veterinary Specialist, Educator, Leader, and Consultant"), then the ENTIRE string is the title and org MUST be empty string "".
+   - NEVER fabricate an org. NEVER use the event host org (Veterinary Business Institute, VBI, the panel series name) as a panelist's org.
+   - NEVER infer an org from the email domain (gmail.com, yahoo.com, personal domains are not orgs).
+   - If a bio mentions "founder of X" or "Chief of Y at Z", you MAY use X/Y/Z as the org — but only if it's the panelist's own organization, not a past employer listed as career history. When in doubt, leave org empty.
+   - An empty org is ALWAYS better than a hallucinated one. The banner renderer handles empty org gracefully.
+
+5. Match each panelist to their most likely headshot image by comparing names to filenames.
+
+6. Do NOT include CTA/marketing text in panelTopic (no "Join us", "Save your seat", "Free live panel", "Register now").
+
+7. Look through ALL documents — information may be spread across Partner Details, Promotional Materials, and other docs.
 
 Respond with ONLY the JSON object, no other text.`;
 
     let aiResult = '';
     let aiProvider = 'claude';
     try {
-      aiResult = await generateWithLocalProvider('claude', aiPrompt, 'claude-sonnet-4-20250514');
+      aiResult = await generateWithLocalProvider('claude', aiPrompt, 'claude-opus-4-7');
       console.log('[gog extract] AI provider used: Claude');
     } catch (claudeErr) {
       console.warn('[gog extract] Claude failed:', claudeErr instanceof Error ? claudeErr.message : claudeErr);
@@ -649,12 +690,26 @@ Respond with ONLY the JSON object, no other text.`;
     console.log('[gog extract] Folder → topic:', folderTopic, '| subtitle:', folderSubtitle);
     console.log('[gog extract] Panelists:', JSON.stringify((extracted.panelists || []).map((p: any) => ({ name: p.name, title: p.title, org: p.org }))));
 
-    // Use folder-parsed values as fallback if AI missed them
-    if (!extracted.panelTopic && folderTopic) extracted.panelTopic = folderTopic;
-    if (!extracted.panelSubtitle && folderSubtitle) extracted.panelSubtitle = folderSubtitle;
-    if (!extracted.panelName && folderPanelName) extracted.panelName = folderPanelName;
+    // Marketing-headline guard: strings like "Panel Alert for...", "Join us...", "Don't miss..."
+    // are NOT valid panelName or panelTopic values — they're CTA copy.
+    const MARKETING_HEADLINE_RE = /^(?:panel alert|join us|announcing|don['’]t miss|register now|save your seat|free live|attention|calling all|[⚠⏱🎯📊💡🔥📣🎙⏰])/i;
+    const looksLikeMarketing = (s?: string) => !!s && MARKETING_HEADLINE_RE.test(s.trim());
+    if (looksLikeMarketing(extracted.panelName)) {
+      console.warn('[gog extract] Rejecting AI panelName as marketing headline:', extracted.panelName);
+      extracted.panelName = '';
+    }
+    if (looksLikeMarketing(extracted.panelTopic)) {
+      console.warn('[gog extract] Rejecting AI panelTopic as marketing headline:', extracted.panelTopic);
+      extracted.panelTopic = '';
+    }
+    const looksLikePanelName = (s?: string) => !!s && /\b(panel|summit|roundtable|forum|symposium)\b/i.test(s) && !MARKETING_HEADLINE_RE.test(s);
+
+    // Use folder-parsed values as fallback if AI missed them AND they themselves pass the guards
+    if (!extracted.panelTopic && folderTopic && !looksLikeMarketing(folderTopic)) extracted.panelTopic = folderTopic;
+    if (!extracted.panelSubtitle && folderSubtitle && !looksLikeMarketing(folderSubtitle)) extracted.panelSubtitle = folderSubtitle;
+    if (!extracted.panelName && folderPanelName && looksLikePanelName(folderPanelName)) extracted.panelName = folderPanelName;
     // If AI returned topic but no subtitle, and folder has subtitle, use folder's
-    if (extracted.panelTopic && !extracted.panelSubtitle && folderSubtitle) {
+    if (extracted.panelTopic && !extracted.panelSubtitle && folderSubtitle && !looksLikeMarketing(folderSubtitle)) {
       extracted.panelSubtitle = folderSubtitle;
     }
 
@@ -707,7 +762,7 @@ app.post('/api/ai/generate-sdk', async (req, res) => {
   try {
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
-      model: model || 'claude-sonnet-4-20250514',
+      model: model || 'claude-opus-4-7',
       max_tokens: max_tokens || 4096,
       messages,
     });

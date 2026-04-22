@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useLayoutEffect, useEffect } from 'react';
 import { Download, Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { GeneratedBanner } from '../../utils/bannerTemplates';
 import { PINK, DARK_SURFACE, DARK_BORDER } from './constants';
@@ -21,20 +21,22 @@ export function BannerModal({
   darkMode: boolean;
 }) {
   const banner = banners[currentIndex];
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  // Compute synchronously from window size so the first paint is already correct.
+  // Reserve: 180px vertical chrome (header + padding), 160px horizontal (arrows + padding).
+  const computeScale = () => {
+    if (typeof window === 'undefined') return 0.6;
+    const maxH = window.innerHeight * 0.92 - 180;
+    const maxW = window.innerWidth * 0.92 - 160;
+    return Math.max(0.1, Math.min(maxH / 1080, maxW / 1080, 1));
+  };
+  const [scale, setScale] = useState<number>(computeScale);
 
-  useEffect(() => {
-    const computeScale = () => {
-      // Available space: 90vh for the banner (leave room for header), 90vw minus nav arrows
-      const maxH = window.innerHeight * 0.85 - 70; // 70px for header bar
-      const maxW = window.innerWidth * 0.85 - 80; // 80px for nav arrows
-      const s = Math.min(maxH / 1080, maxW / 1080, 1); // never scale up
-      setScale(s);
-    };
-    computeScale();
-    window.addEventListener('resize', computeScale);
-    return () => window.removeEventListener('resize', computeScale);
+  useLayoutEffect(() => {
+    const recompute = () => setScale(computeScale());
+    // Recompute once on mount to handle any font-metrics shifts, then on resize.
+    recompute();
+    window.addEventListener('resize', recompute);
+    return () => window.removeEventListener('resize', recompute);
   }, []);
 
   useEffect(() => {
@@ -47,34 +49,40 @@ export function BannerModal({
     return () => window.removeEventListener('keydown', handleKey);
   }, [currentIndex, banners.length, onClose, onNavigate]);
 
+  // Prevent page scroll while modal is open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   if (!banner) return null;
 
   const displaySize = Math.round(1080 * scale);
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div
-        ref={containerRef}
         className="anim-scale-in relative rounded-2xl border-[2px] flex flex-col"
         style={{
           background: darkMode ? DARK_SURFACE : '#ffffff',
           borderColor: darkMode ? DARK_BORDER : '#000000',
           boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)',
-          maxWidth: '95vw',
-          maxHeight: '95vh',
+          maxWidth: 'min(95vw, calc(100vw - 32px))',
+          maxHeight: 'min(95vh, calc(100vh - 32px))',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{ borderBottom: `1px solid ${darkMode ? '#333' : '#f3f4f6'}` }}>
-          <div>
-            <h3 className="text-lg font-bold" style={{ color: darkMode ? '#f0f0f0' : '#000' }}>{banner.label}</h3>
-            <p className="text-xs" style={{ color: darkMode ? '#888' : '#9ca3af' }}>{banner.panelistName} &middot; {banner.fileName}.png &middot; 1080x1080</p>
+        <div className="flex items-center justify-between gap-4 px-5 py-3 shrink-0" style={{ borderBottom: `1px solid ${darkMode ? '#333' : '#f3f4f6'}` }}>
+          <div className="min-w-0">
+            <h3 className="text-lg font-bold truncate" style={{ color: darkMode ? '#f0f0f0' : '#000' }}>{banner.label}</h3>
+            <p className="text-xs truncate" style={{ color: darkMode ? '#888' : '#9ca3af' }}>{banner.panelistName} &middot; {banner.fileName}.png &middot; 1080x1080</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => onDownload(banner)}
               disabled={downloading === banner.id}
@@ -84,7 +92,7 @@ export function BannerModal({
               {downloading === banner.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
               Download PNG
             </button>
-            <button onClick={onClose} className="p-2 rounded-full transition-colors" style={{ color: darkMode ? '#888' : '#6b7280' }}>
+            <button onClick={onClose} className="p-2 rounded-full transition-colors hover:opacity-70" style={{ color: darkMode ? '#888' : '#6b7280' }} aria-label="Close">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -93,7 +101,7 @@ export function BannerModal({
         {/* Banner -- scaled to fit viewport */}
         <div className="flex items-center justify-center p-4 overflow-hidden">
           <div
-            className="rounded-xl overflow-hidden border-[2px]"
+            className="rounded-xl overflow-hidden border-[2px] shrink-0"
             style={{
               width: displaySize,
               height: displaySize,
@@ -109,6 +117,7 @@ export function BannerModal({
                 border: 'none',
                 transform: `scale(${scale})`,
                 transformOrigin: 'top left',
+                display: 'block',
               }}
               sandbox="allow-same-origin allow-scripts"
               title={banner.label}
@@ -122,6 +131,7 @@ export function BannerModal({
             onClick={() => onNavigate(currentIndex - 1)}
             className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full shadow-md hover:scale-110 transition-transform border-[2px]"
             style={{ background: darkMode ? DARK_SURFACE : '#fff', borderColor: darkMode ? DARK_BORDER : '#000', color: darkMode ? '#f0f0f0' : '#000' }}
+            aria-label="Previous banner"
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
@@ -131,6 +141,7 @@ export function BannerModal({
             onClick={() => onNavigate(currentIndex + 1)}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full shadow-md hover:scale-110 transition-transform border-[2px]"
             style={{ background: darkMode ? DARK_SURFACE : '#fff', borderColor: darkMode ? DARK_BORDER : '#000', color: darkMode ? '#f0f0f0' : '#000' }}
+            aria-label="Next banner"
           >
             <ChevronRight className="w-6 h-6" />
           </button>
